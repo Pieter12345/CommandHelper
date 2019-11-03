@@ -16,7 +16,6 @@ import org.junit.Test;
 
 import com.laytonsmith.abstraction.MCPlayer;
 import com.laytonsmith.abstraction.MCServer;
-import com.laytonsmith.core.MethodScriptCompiler;
 import com.laytonsmith.core.Static;
 import com.laytonsmith.core.environments.CommandHelperEnvironment;
 import com.laytonsmith.core.exceptions.ConfigRuntimeException;
@@ -30,6 +29,7 @@ public class ControlFlowTest {
 
 	public ControlFlowTest() throws Exception {
 		env = Static.GenerateStandaloneEnvironment();
+		env = env.cloneAndAdd(new CommandHelperEnvironment());
 	}
 
 	@BeforeClass
@@ -168,8 +168,7 @@ public class ControlFlowTest {
 				+ "     array_push(@array, @i)\n"
 				+ " )\n"
 				+ " msg(@array)\n";
-		MethodScriptCompiler.execute(MethodScriptCompiler.compile(
-				MethodScriptCompiler.lex(script, null, true), null), env, null, null);
+		SRun(script, fakePlayer);
 	}
 
 	@Test(timeout = 10000)

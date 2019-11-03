@@ -5,6 +5,7 @@ import com.laytonsmith.PureUtilities.Common.StreamUtils;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.abstraction.Implementation;
 import com.laytonsmith.abstraction.MCBlockCommandSender;
+import com.laytonsmith.abstraction.MCCommand;
 import com.laytonsmith.abstraction.MCCommandSender;
 import com.laytonsmith.abstraction.MCLocation;
 import com.laytonsmith.abstraction.MCPlayer;
@@ -42,6 +43,7 @@ import com.laytonsmith.core.environments.GlobalEnv;
 import com.laytonsmith.core.exceptions.CRE.CRECastException;
 import com.laytonsmith.core.exceptions.CRE.CREFormatException;
 import com.laytonsmith.core.exceptions.CRE.CREIOException;
+import com.laytonsmith.core.exceptions.CRE.CRENotFoundException;
 import com.laytonsmith.core.exceptions.CRE.CREPlayerOfflineException;
 import com.laytonsmith.core.exceptions.CRE.CREPluginInternalException;
 import com.laytonsmith.core.exceptions.CRE.CREThrowable;
@@ -49,6 +51,7 @@ import com.laytonsmith.core.exceptions.CancelCommandException;
 import com.laytonsmith.core.exceptions.ConfigCompileException;
 import com.laytonsmith.core.exceptions.ConfigRuntimeException;
 import com.laytonsmith.core.natives.interfaces.Mixed;
+
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -129,7 +132,7 @@ public class Meta {
 				throw new CREFormatException("The first character of the command must be a forward slash (i.e. '/give')", t);
 			}
 			String cmd = args[1].val().substring(1);
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				CArray u = (CArray) args[0];
 				for(int i = 0; i < u.size(); i++) {
 					exec(t, env, new Mixed[]{new CString(u.get(i, t).val(), t), args[1]});
@@ -220,39 +223,50 @@ public class Meta {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
-			if(Construct.nval(args[0]) == null || args[0].val().length() <= 0 || args[0].val().charAt(0) != '/') {
-				throw new CREFormatException("The first character of the command must be a forward slash (i.e. '/give')", t);
+			Mixed command;
+			MCPlayer sender;
+			if(args.length == 2) {
+				sender = Static.GetPlayer(args[0], t);
+				command = args[1];
+			} else {
+				sender = env.getEnv(CommandHelperEnvironment.class).GetPlayer();
+				command = args[0];
 			}
-			String cmd = args[0].val().substring(1);
-			//If the command sender is null, then just try to run() this. It's unclear to me what
-			//would cause this for sure, but just in case. Regardless, this allows us to consolidate the error checking
-			//into the run function
-			if(env.getEnv(CommandHelperEnvironment.class).GetCommandSender() == null) {
+
+			//If the command sender is null, this is not a player, so just try to run() this.
+			if(sender == null) {
 				return new run().exec(t, env, args);
 			}
-			//Store their current op status
-			Boolean isOp = env.getEnv(CommandHelperEnvironment.class).GetCommandSender().isOp();
 
-			MSLog.GetLogger().Log(MSLog.Tags.META, LogLevel.INFO, "Executing command on " + (env.getEnv(CommandHelperEnvironment.class).GetPlayer() != null ? env.getEnv(CommandHelperEnvironment.class).GetPlayer().getName() : "console") + " (as op): " + args[0].val().trim(), t);
+			if(Construct.nval(command) == null || command.val().isEmpty() || command.val().charAt(0) != '/') {
+				throw new CREFormatException("The first character of a command must be a forward slash (eg. /give)", t);
+			}
+
+			String cmd = command.val().substring(1);
+
+			//Store their current op status
+			Boolean isOp = sender.isOp();
+
+			MSLog.GetLogger().Log(MSLog.Tags.META, LogLevel.INFO, "Executing command on " + sender
+					+ " (as op): " + command.val(), t);
 			if(Prefs.DebugMode()) {
-				Static.getLogger().log(Level.INFO, "Executing command on " + (env.getEnv(CommandHelperEnvironment.class).GetPlayer() != null ? env.getEnv(CommandHelperEnvironment.class).GetPlayer().getName() : "console") + " (as op): " + args[0].val().trim());
+				Static.getLogger().log(Level.INFO, "Executing command on " + sender + " (as op): " + command.val());
 			}
 
 			//If they aren't op, op them now
 			if(!isOp) {
-				this.setOp(env.getEnv(CommandHelperEnvironment.class).GetCommandSender(), true);
+				this.setOp(sender, true);
 			}
 
 			try {
-				Static.getServer().dispatchCommand(this.getOPCommandSender(env.getEnv(CommandHelperEnvironment.class).GetCommandSender()), cmd);
+				Static.getServer().dispatchCommand(this.getOPCommandSender(sender), cmd);
 			} finally {
 				//If they just opped themselves, or deopped themselves in the command
 				//don't undo what they just did. Otherwise, set their op status back
 				//to their original status
-				if(env.getEnv(CommandHelperEnvironment.class).GetPlayer() != null
-						&& !cmd.equalsIgnoreCase("op " + env.getEnv(CommandHelperEnvironment.class).GetPlayer().getName())
-						&& !cmd.equalsIgnoreCase("deop " + env.getEnv(CommandHelperEnvironment.class).GetPlayer().getName())) {
-					this.setOp(env.getEnv(CommandHelperEnvironment.class).GetCommandSender(), isOp);
+				if(!cmd.equalsIgnoreCase("op " + sender.getName())
+						&& !cmd.equalsIgnoreCase("deop " + sender.getName())) {
+					this.setOp(sender, isOp);
 				}
 			}
 			return CVoid.VOID;
@@ -265,20 +279,20 @@ public class Meta {
 
 		@Override
 		public Integer[] numArgs() {
-			return new Integer[]{1};
+			return new Integer[]{1, 2};
 		}
 
 		@Override
 		public String docs() {
-			return "void {command} Runs a single command for this user, as op. Works like runas(~op, '/command') used to work,"
-					+ " before it was deprecated. ---- This is guaranteed to not allow the player to stay op, even if a fatal"
-					+ " error occurs during the command. If this guarantee cannot be met, the function will simply fail. This"
-					+ " guarantee only exists in CraftBukkit. Other server types may find that this function does not work at"
-					+ " all, if that's the case, and you are ok with losing the deop guarantee, you can set use-sudo-fallback"
-					+ " to true in your preferences. If the normal sudo functionality fails on your server then, it will"
-					+ " actually fully op the player, run the command, then deop the player, however, this is less reliable than"
-					+ " the normal sudo mechanism, and could potentially fail, leaving the player as op, so is not recommended."
-					+ " Enable that setting at your own risk.";
+			return "void {[player], command} Runs a single command for the current or provided player, as op."
+					+ " ---- This is guaranteed to not allow the player to stay op, even if a fatal error occurs during"
+					+ " the command. If this guarantee cannot be met, the function will simply fail. Some server types"
+					+ " may find that this function does not work at all. If that's the case and you are ok with losing"
+					+ " the deop guarantee, you can set use-sudo-fallback to true in your preferences."
+					+ " Then if the normal sudo functionality fails on your server, then it will actually fully op the"
+					+ " player, run the command, and finally deop the player. However, this is less reliable than"
+					+ " the normal sudo mechanism, and could potentially fail, leaving the player as op."
+					+ " So, this is not recommended. Enable that setting at your own risk.";
 		}
 
 		@Override
@@ -292,33 +306,32 @@ public class Meta {
 		 * @param player
 		 * @param value
 		 */
-		protected void setOp(MCCommandSender player, Boolean value) {
-			if(!(player instanceof MCPlayer) || player.isOp() == value) {
+		private void setOp(MCPlayer player, Boolean value) {
+			if(player.isOp() == value) {
 				return;
 			}
-			MCPlayer p = (MCPlayer) player;
 			try {
-				p.setTempOp(value);
+				player.setTempOp(value);
 			} catch (Exception e) {
 				if(Prefs.UseSudoFallback()) {
-					p.setOp(value);
+					player.setOp(value);
 				} else {
 					Static.getLogger().log(Level.WARNING, "Failed to OP player " + player.getName() + "."
-							+ " Check that your server jar ends with \".jar\" or enable \"use-sudo-fallback\" in preferences.ini.");
+							+ " Check that your server jar ends with \".jar\"."
+							+ " You can choose to enable \"use-sudo-fallback\" in preferences.ini.");
 					StreamUtils.GetSystemErr().println("Extra information about the error: ");
 					e.printStackTrace();
 				}
 			}
 		}
 
-		protected MCCommandSender getOPCommandSender(final MCCommandSender sender) {
+		private MCPlayer getOPCommandSender(final MCPlayer sender) {
 			if(sender.isOp()) {
 				return sender;
 			}
 
-			return (MCCommandSender) Proxy.newProxyInstance(sender.getClass().getClassLoader(),
-					new Class[]{(sender instanceof MCPlayer) ? MCPlayer.class : MCCommandSender.class},
-					new InvocationHandler() {
+			return (MCPlayer) Proxy.newProxyInstance(sender.getClass().getClassLoader(),
+					new Class[]{MCPlayer.class}, new InvocationHandler() {
 				@Override
 				public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 					String methodName = method.getName();
@@ -374,7 +387,8 @@ public class Meta {
 
 		@Override
 		public String docs() {
-			return "void {var1} Runs a command as the current player. Useful for running commands in a loop. Note that this accepts commands like from the "
+			return "void {string command} Runs a command as the current player. Useful for running commands in a loop."
+					+ " Note that this accepts commands like from the "
 					+ "chat; with a forward slash in front.";
 		}
 
@@ -391,6 +405,86 @@ public class Meta {
 		@Override
 		public MSVersion since() {
 			return MSVersion.V3_0_1;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return false;
+		}
+	}
+
+	@api(environments = {CommandHelperEnvironment.class})
+	public static class get_cmd_completions extends AbstractFunction {
+
+		@Override
+		public String getName() {
+			return "get_cmd_completions";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{2, 3};
+		}
+
+		@Override
+		public Mixed exec(Target t, Environment env, Mixed... args) throws CancelCommandException, ConfigRuntimeException {
+			MCCommandSender sender;
+			String commandString;
+			List<Mixed> argList;
+			if(args.length == 2) {
+				sender = env.getEnv(CommandHelperEnvironment.class).GetCommandSender();
+				commandString = args[0].val();
+				argList = Static.getArray(args[1], t).asList();
+			} else {
+				sender = Static.GetCommandSender(args[0].val(), t);
+				commandString = args[1].val();
+				argList = Static.getArray(args[2], t).asList();
+			}
+
+			if(commandString.length() < 1 || commandString.charAt(0) != '/') {
+				throw new CREFormatException("The first character of the command must be a forward slash (i.e. '/give')", t);
+			}
+			commandString = commandString.substring(1);
+			MCCommand command = Static.getServer().getCommandMap().getCommand(commandString);
+			if(command == null) {
+				throw new CRENotFoundException("Command does not exist: " + commandString, t);
+			}
+
+			String[] arguments = new String[argList.size()];
+			for(int i = 0; i < argList.size(); i++) {
+				arguments[i] = argList.get(i).val();
+			}
+
+			List<String> completions = command.tabComplete(sender, commandString, arguments);
+			CArray ret = new CArray(t);
+			for(String s : completions) {
+				ret.push(new CString(s, t), t);
+			}
+			return ret;
+		}
+
+		@Override
+		public String docs() {
+			return "array {[player], command, args} Runs a plugin command's tab completer and returns an array of"
+					+ " possible completions for the final argument. ----"
+					+ " The args parameter must be an array of strings."
+					+ " A command prefix can be used to specify a specific plugin. (eg. \"/worldedit:remove\")"
+					+ " Throws a NotFoundException if the command does not exist.";
+		}
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{CREFormatException.class, CREPluginInternalException.class, CRENotFoundException.class};
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return true;
+		}
+
+		@Override
+		public MSVersion since() {
+			return MSVersion.V3_3_4;
 		}
 
 		@Override
@@ -527,9 +621,10 @@ public class Meta {
 
 		@Override
 		public String docs() {
-			return "void {player, [label], script} Runs the specified script in the context of a given player."
-					+ " A script that runs player() for instance, would return the specified player's name,"
-					+ " not the player running the command. Setting the label allows you to dynamically set the label"
+			return "void {player, [label], script} Runs the specified script in the context of a given player or "
+					+ Static.getConsoleName() + ". A script that runs player(), for instance,"
+					+ " would return the specified player's name, not the player running the command."
+					+ " Setting the label allows you to dynamically set the label"
 					+ " this script is run under as well (in regards to permission checking)";
 		}
 
@@ -565,8 +660,14 @@ public class Meta {
 
 		@Override
 		public Mixed execs(Target t, Environment environment, Script parent, ParseTree... nodes) throws ConfigRuntimeException {
-			MCPlayer p = Static.GetPlayer(parent.seval(nodes[0], environment).val(), t);
-			MCCommandSender originalPlayer = environment.getEnv(CommandHelperEnvironment.class).GetCommandSender();
+			String senderName = parent.seval(nodes[0], environment).val();
+			MCCommandSender sender;
+			if(senderName.equals(Static.getConsoleName())) {
+				sender = Static.getServer().getConsole();
+			} else {
+				sender = Static.GetPlayer(senderName, t);
+			}
+			MCCommandSender originalSender = environment.getEnv(CommandHelperEnvironment.class).GetCommandSender();
 			int offset = 0;
 			String originalLabel = environment.getEnv(GlobalEnv.class).GetLabel();
 			if(nodes.length == 3) {
@@ -576,11 +677,11 @@ public class Meta {
 			} else {
 				environment.getEnv(GlobalEnv.class).SetLabel(parent.getLabel());
 			}
-			environment.getEnv(CommandHelperEnvironment.class).SetPlayer(p);
+			environment.getEnv(CommandHelperEnvironment.class).SetCommandSender(sender);
 			parent.enforceLabelPermissions();
 			ParseTree tree = nodes[1 + offset];
 			parent.eval(tree, environment);
-			environment.getEnv(CommandHelperEnvironment.class).SetCommandSender(originalPlayer);
+			environment.getEnv(CommandHelperEnvironment.class).SetCommandSender(originalSender);
 			environment.getEnv(GlobalEnv.class).SetLabel(originalLabel);
 			return CVoid.VOID;
 		}
@@ -865,7 +966,7 @@ public class Meta {
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			CString s;
-			if(args[0].isInstanceOf(CString.class)) {
+			if(args[0].isInstanceOf(CString.TYPE)) {
 				s = (CString) args[0];
 			} else {
 				s = new CString(args[0].val(), t);
@@ -1442,7 +1543,9 @@ public class Meta {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() != 1) {
 				throw new ConfigCompileException("Invalid number of arguments passed to " + getName(), t);
@@ -1489,6 +1592,51 @@ public class Meta {
 		@Override
 		public Set<OptimizationOption> optimizationOptions() {
 			return EnumSet.of(OptimizationOption.OPTIMIZE_DYNAMIC);
+		}
+
+	}
+
+	@api
+	public static class engine_location extends AbstractFunction {
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return null;
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return true;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return null;
+		}
+
+		@Override
+		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
+			return new CString(ClassDiscovery.GetClassContainer(Meta.class).toString(), t);
+		}
+
+		@Override
+		public String getName() {
+			return "engine_location";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{0};
+		}
+
+		@Override
+		public String docs() {
+			return "string {} Returns the location of the currently running engine binary.";
+		}
+
+		@Override
+		public Version since() {
+			return MSVersion.V3_3_4;
 		}
 
 	}

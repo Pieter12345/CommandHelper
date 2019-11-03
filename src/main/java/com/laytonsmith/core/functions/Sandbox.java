@@ -522,18 +522,22 @@ public class Sandbox {
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
 			File file = Static.GetFileFromArgument(args[0].val(), env, t, null);
 			int num = 0;
-			if(Security.CheckSecurity(file)) {
-				if(file.isDirectory()) {
-					HashMap<File, ParseTree> files = compileDirectory(file, env, t);
-					IncludeCache.addAll(files);
-					num = files.size();
-				} else if(IncludeCache.has(file)) {
-					IncludeCache.add(file, compileFile(file, env, t));
-					num = 1;
+			try {
+				if(Security.CheckSecurity(file)) {
+					if(file.isDirectory()) {
+						HashMap<File, ParseTree> files = compileDirectory(file, env, t);
+						IncludeCache.addAll(files);
+						num = files.size();
+					} else if(IncludeCache.has(file)) {
+						IncludeCache.add(file, compileFile(file, env, t));
+						num = 1;
+					}
+				} else {
+					throw new CRESecurityException("The script cannot access " + file
+							+ " due to restrictions imposed by the base-dir setting.", t);
 				}
-			} else {
-				throw new CRESecurityException("The script cannot access " + file
-						+ " due to restrictions imposed by the base-dir setting.", t);
+			} catch (IOException ex) {
+				throw new CREIOException(ex.getMessage(), t, ex);
 			}
 			return new CInt(num, t);
 		}
@@ -556,7 +560,7 @@ public class Sandbox {
 		private ParseTree compileFile(File file, Environment env, Target t) {
 			try {
 				String s = new ZipReader(file).getFileContents();
-				return MethodScriptCompiler.compile(MethodScriptCompiler.lex(s, file, true), env);
+				return MethodScriptCompiler.compile(MethodScriptCompiler.lex(s, env, file, true), env, env.getEnvClasses());
 			} catch (ConfigCompileException ex) {
 				throw new CREIncludeException("There was a compile error when trying to recompile the script at "
 						+ file + "\n" + ex.getMessage() + " :: " + file.getName() + ":" + ex.getLineNum(), t);
@@ -603,7 +607,7 @@ public class Sandbox {
 			}
 
 			byte[] content;
-			if(!(args[1].isInstanceOf(CByteArray.class))) {
+			if(!(args[1].isInstanceOf(CByteArray.TYPE))) {
 				content = args[1].val().getBytes(Charset.forName("UTF-8"));
 			} else {
 				content = ArgumentValidation.getByteArray(args[1], t).asByteArrayCopy();

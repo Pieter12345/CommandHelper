@@ -8,6 +8,7 @@ import com.laytonsmith.abstraction.AbstractConvertor;
 import com.laytonsmith.abstraction.Convertor;
 import com.laytonsmith.abstraction.ConvertorHelper;
 import com.laytonsmith.abstraction.Implementation;
+import com.laytonsmith.abstraction.MCAttributeModifier;
 import com.laytonsmith.abstraction.MCColor;
 import com.laytonsmith.abstraction.MCCommandSender;
 import com.laytonsmith.abstraction.MCConsoleCommandSender;
@@ -33,7 +34,9 @@ import com.laytonsmith.abstraction.blocks.MCMaterial;
 import com.laytonsmith.abstraction.bukkit.BukkitConvertor;
 import com.laytonsmith.abstraction.bukkit.BukkitMCLocation;
 import com.laytonsmith.abstraction.bukkit.BukkitMCWorld;
+import com.laytonsmith.abstraction.enums.MCAttribute;
 import com.laytonsmith.abstraction.enums.MCDyeColor;
+import com.laytonsmith.abstraction.enums.MCEquipmentSlot;
 import com.laytonsmith.abstraction.enums.MCPatternShape;
 import com.laytonsmith.abstraction.enums.MCPotionType;
 import com.laytonsmith.abstraction.enums.MCRecipeType;
@@ -90,28 +93,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-//import static org.powermock.api.mockito.PowerMockito.mock;
-//import org.powermock.modules.junit4.PowerMockRunner;
 
 /**
  *
  *
  */
-//@RunWith(PowerMockRunner.class)
 public class StaticTest {
 
 	static com.laytonsmith.core.environments.Environment env;
+	static Set<Class<? extends Environment.EnvironmentImpl>> envs = Environment.getDefaultEnvClasses();
 
 	static {
 		try {
+			envs.add(CommandHelperEnvironment.class);
 			Implementation.setServerType(Implementation.Type.TEST);
 			env = Static.GenerateStandaloneEnvironment();
+			env = env.cloneAndAdd(new CommandHelperEnvironment());
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
 		}
@@ -285,7 +289,7 @@ public class StaticTest {
 						thrown = new Class[0];
 					}
 					for(Class<? extends CREThrowable> tt : thrown) {
-						expectedNames.add(tt.getAnnotation(typeof.class).value());
+						expectedNames.add(ClassDiscovery.GetClassAnnotation(tt, typeof.class).value());
 					}
 					if(f.thrown() == null || !expectedNames.contains(name)) {
 						fail("The documentation for " + f.getName() + " doesn't state that it can throw a "
@@ -524,7 +528,7 @@ public class StaticTest {
 			env = StaticTest.env;
 		}
 		env.getEnv(CommandHelperEnvironment.class).SetCommandSender(player);
-		MethodScriptCompiler.execute(MethodScriptCompiler.compile(MethodScriptCompiler.lex(script, null, true), env), env, done, null);
+		MethodScriptCompiler.execute(MethodScriptCompiler.compile(MethodScriptCompiler.lex(script, env, null, true), env, envs), env, done, null);
 	}
 
 	public static void RunCommand(String combinedScript, MCCommandSender player, String command) throws Exception {
@@ -537,7 +541,7 @@ public class StaticTest {
 			env = StaticTest.env;
 		}
 		env.getEnv(CommandHelperEnvironment.class).SetCommandSender(player);
-		List<Script> scripts = MethodScriptCompiler.preprocess(MethodScriptCompiler.lex(combinedScript, null, false));
+		List<Script> scripts = MethodScriptCompiler.preprocess(MethodScriptCompiler.lex(combinedScript, env, null, false), env.getEnvClasses());
 		for(Script s : scripts) {
 			s.compile();
 			if(s.match(command)) {
@@ -716,6 +720,11 @@ public class StaticTest {
 		}
 
 		@Override
+		public MCAttributeModifier GetAttributeModifier(MCAttribute attr, UUID id, String name, double amt, MCAttributeModifier.Operation op, MCEquipmentSlot slot) {
+			throw new UnsupportedOperationException("Not supported yet.");
+		}
+
+		@Override
 		public int SetFutureRunnable(DaemonManager dm, long ms, Runnable r) {
 			//This needs fixing later
 			queue.invokeLater(dm, r);
@@ -805,6 +814,11 @@ public class StaticTest {
 
 		@Override
 		public MCPluginMeta GetPluginMeta() {
+			throw new UnsupportedOperationException("Not supported yet.");
+		}
+
+		@Override
+		public MCMaterial[] GetMaterialValues() {
 			throw new UnsupportedOperationException("Not supported yet.");
 		}
 

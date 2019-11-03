@@ -15,15 +15,18 @@ import com.laytonsmith.abstraction.blocks.MCBlockFace;
 import com.laytonsmith.abstraction.blocks.MCMaterial;
 import com.laytonsmith.abstraction.entities.MCFishHook;
 import com.laytonsmith.abstraction.enums.MCAction;
+import com.laytonsmith.abstraction.enums.MCEnterBedResult;
 import com.laytonsmith.abstraction.enums.MCEquipmentSlot;
 import com.laytonsmith.abstraction.enums.MCFishingState;
 import com.laytonsmith.abstraction.enums.MCGameMode;
+import com.laytonsmith.abstraction.enums.MCResourcePackStatus;
 import com.laytonsmith.abstraction.enums.MCTeleportCause;
 import com.laytonsmith.abstraction.enums.MCVersion;
 import com.laytonsmith.abstraction.events.MCExpChangeEvent;
 import com.laytonsmith.abstraction.events.MCFoodLevelChangeEvent;
 import com.laytonsmith.abstraction.events.MCGamemodeChangeEvent;
-import com.laytonsmith.abstraction.events.MCPlayerBedEvent;
+import com.laytonsmith.abstraction.events.MCPlayerEnterBedEvent;
+import com.laytonsmith.abstraction.events.MCPlayerLeaveBedEvent;
 import com.laytonsmith.abstraction.events.MCPlayerChatEvent;
 import com.laytonsmith.abstraction.events.MCPlayerCommandEvent;
 import com.laytonsmith.abstraction.events.MCPlayerDeathEvent;
@@ -37,6 +40,7 @@ import com.laytonsmith.abstraction.events.MCPlayerLoginEvent;
 import com.laytonsmith.abstraction.events.MCPlayerMoveEvent;
 import com.laytonsmith.abstraction.events.MCPlayerPortalEvent;
 import com.laytonsmith.abstraction.events.MCPlayerQuitEvent;
+import com.laytonsmith.abstraction.events.MCPlayerResourcePackEvent;
 import com.laytonsmith.abstraction.events.MCPlayerRespawnEvent;
 import com.laytonsmith.abstraction.events.MCPlayerTeleportEvent;
 import com.laytonsmith.abstraction.events.MCPlayerToggleFlightEvent;
@@ -823,7 +827,7 @@ public class PlayerEvents {
 			}
 			if(prefilter.containsKey("block")) {
 				Mixed ctype = prefilter.get("block");
-				if(ctype.isInstanceOf(CString.class) && ctype.val().contains(":") || ArgumentValidation.isNumber(ctype)) {
+				if(ctype.isInstanceOf(CString.TYPE) && ctype.val().contains(":") || ArgumentValidation.isNumber(ctype)) {
 					int type;
 					String notation = ctype.val();
 					int separatorIndex = notation.indexOf(':');
@@ -949,70 +953,17 @@ public class PlayerEvents {
 
 	}
 
-	public abstract static class player_bed_event extends AbstractEvent {
-
-		@Override
-		public boolean matches(Map<String, Mixed> prefilter, BindableEvent e) throws PrefilterNonMatchException {
-			if(e instanceof MCPlayerBedEvent) {
-				MCPlayerBedEvent be = (MCPlayerBedEvent) e;
-
-				if(prefilter.containsKey("location")) {
-					MCLocation loc = ObjectGenerator.GetGenerator().location(prefilter.get("location"), null, Target.UNKNOWN);
-
-					if(!be.getBed().getLocation().equals(loc)) {
-						return false;
-					}
-				}
-
-				return true;
-			}
-
-			return false;
-		}
-
-		@Override
-		public BindableEvent convert(CArray manual, Target t) {
-			MCPlayer p = Static.GetPlayer(manual.get("player", Target.UNKNOWN), Target.UNKNOWN);
-			MCBlock b = ObjectGenerator.GetGenerator().location(manual.get("location", Target.UNKNOWN), null, Target.UNKNOWN).getBlock();
-
-			MCPlayerBedEvent e = EventBuilder.instantiate(MCPlayerBedEvent.class, p, b);
-
-			return e;
-		}
-
-		@Override
-		public Map<String, Mixed> evaluate(BindableEvent e) throws EventException {
-			if(e instanceof MCPlayerBedEvent) {
-				MCPlayerBedEvent bee = (MCPlayerBedEvent) e;
-				Map<String, Mixed> map = evaluate_helper(e);
-				map.put("location", ObjectGenerator.GetGenerator().location(bee.getBed().getLocation(), false));
-				return map;
-			} else {
-				throw new EventException("Cannot convert e to an appropriate PlayerBedEvent.");
-			}
-		}
-
-		@Override
-		public Driver driver() {
-			return Driver.PLAYER_BED_EVENT;
-		}
-
-		@Override
-		public boolean modifyEvent(String key, Mixed value, BindableEvent event) {
-			return false;
-		}
-
-	}
-
 	@api
-	public static class player_enter_bed extends player_bed_event {
+	public static class player_enter_bed extends AbstractEvent {
 
 		@Override
 		public String docs() {
-			return "{location: The location of the bed} "
+			return "{location: <location match> The location of the bed | result: <string match>} "
 					+ "Fires when a player tries to enter a bed."
 					+ "{location: The location of the bed |"
-					+ " player: The player associated with this event}"
+					+ " player: The player associated with this event |"
+					+ " result: The outcome of this attempt to enter bed. Can be one of "
+					+ StringUtils.Join(MCEnterBedResult.values(), ", ", ", or ") + "}"
 					+ "{}"
 					+ "{location|player}";
 		}
@@ -1026,14 +977,70 @@ public class PlayerEvents {
 		public Version since() {
 			return MSVersion.V3_3_1;
 		}
+
+		@Override
+		public boolean matches(Map<String, Mixed> prefilter, BindableEvent e) throws PrefilterNonMatchException {
+			if(!(e instanceof MCPlayerEnterBedEvent)) {
+				return false;
+			}
+			MCPlayerEnterBedEvent be = (MCPlayerEnterBedEvent) e;
+
+			if(prefilter.containsKey("location")) {
+				MCLocation loc = ObjectGenerator.GetGenerator().location(prefilter.get("location"), null, Target.UNKNOWN);
+
+				if(!be.getBed().getLocation().equals(loc)) {
+					return false;
+				}
+			}
+			if(prefilter.containsKey("result")) {
+				if(!prefilter.get("result").val().equals(be.getResult().name())) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		@Override
+		public Map<String, Mixed> evaluate(BindableEvent e) throws EventException {
+			if(e instanceof MCPlayerEnterBedEvent) {
+				MCPlayerEnterBedEvent bee = (MCPlayerEnterBedEvent) e;
+				Map<String, Mixed> map = evaluate_helper(e);
+				map.put("location", ObjectGenerator.GetGenerator().location(bee.getBed().getLocation(), false));
+				map.put("result", new CString(bee.getResult().name(), Target.UNKNOWN));
+				return map;
+			} else {
+				throw new EventException("Cannot convert e to an appropriate PlayerEnterBedEvent.");
+			}
+		}
+
+		@Override
+		public Driver driver() {
+			return Driver.PLAYER_ENTER_BED;
+		}
+
+		@Override
+		public boolean modifyEvent(String key, Mixed value, BindableEvent event) {
+			return false;
+		}
+
+		@Override
+		public BindableEvent convert(CArray manual, Target t) {
+			MCPlayer p = Static.GetPlayer(manual.get("player", Target.UNKNOWN), Target.UNKNOWN);
+			MCBlock b = ObjectGenerator.GetGenerator().location(manual.get("location", Target.UNKNOWN),
+					null, Target.UNKNOWN).getBlock();
+			MCEnterBedResult r = MCEnterBedResult.valueOf(manual.get("result", Target.UNKNOWN).val());
+			MCPlayerEnterBedEvent e = EventBuilder.instantiate(MCPlayerEnterBedEvent.class, p, b, r);
+			return e;
+		}
 	}
 
 	@api
-	public static class player_leave_bed extends player_bed_event {
+	public static class player_leave_bed extends AbstractEvent {
 
 		@Override
 		public String docs() {
-			return "{location: The location of the bed} "
+			return "{location: <location match> The location of the bed} "
 					+ "Fires when a player leaves a bed."
 					+ "{location: The location of the bed |"
 					+ " player: The player associated with this event}"
@@ -1049,6 +1056,55 @@ public class PlayerEvents {
 		@Override
 		public Version since() {
 			return MSVersion.V3_3_1;
+		}
+
+		@Override
+		public boolean matches(Map<String, Mixed> prefilter, BindableEvent e) throws PrefilterNonMatchException {
+			if(!(e instanceof MCPlayerLeaveBedEvent)) {
+				return false;
+			}
+			MCPlayerLeaveBedEvent be = (MCPlayerLeaveBedEvent) e;
+
+			if(prefilter.containsKey("location")) {
+				MCLocation loc = ObjectGenerator.GetGenerator().location(prefilter.get("location"), null, Target.UNKNOWN);
+
+				if(!be.getBed().getLocation().equals(loc)) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		@Override
+		public Map<String, Mixed> evaluate(BindableEvent e) throws EventException {
+			if(e instanceof MCPlayerLeaveBedEvent) {
+				MCPlayerLeaveBedEvent bee = (MCPlayerLeaveBedEvent) e;
+				Map<String, Mixed> map = evaluate_helper(e);
+				map.put("location", ObjectGenerator.GetGenerator().location(bee.getBed().getLocation(), false));
+				return map;
+			} else {
+				throw new EventException("Cannot convert e to an appropriate PlayerBedEvent.");
+			}
+		}
+
+		@Override
+		public Driver driver() {
+			return Driver.PLAYER_LEAVE_BED;
+		}
+
+		@Override
+		public boolean modifyEvent(String key, Mixed value, BindableEvent event) {
+			return false;
+		}
+
+		@Override
+		public BindableEvent convert(CArray manual, Target t) {
+			MCPlayer p = Static.GetPlayer(manual.get("player", Target.UNKNOWN), Target.UNKNOWN);
+			MCBlock b = ObjectGenerator.GetGenerator().location(manual.get("location", Target.UNKNOWN),
+					null, Target.UNKNOWN).getBlock();
+			MCPlayerEnterBedEvent e = EventBuilder.instantiate(MCPlayerEnterBedEvent.class, p, b);
+			return e;
 		}
 	}
 
@@ -1527,7 +1583,7 @@ public class PlayerEvents {
 					e.setMessage(Construct.nval(value));
 				}
 				if("recipients".equals(key)) {
-					if(value.isInstanceOf(CArray.class)) {
+					if(value.isInstanceOf(CArray.TYPE)) {
 						List<MCPlayer> list = new ArrayList<MCPlayer>();
 						for(String index : ((CArray) value).stringKeySet()) {
 							Mixed v = ((CArray) value).get(index, value.getTarget());
@@ -1657,7 +1713,7 @@ public class PlayerEvents {
 					e.setMessage(Construct.nval(value));
 				}
 				if("recipients".equals(key)) {
-					if(value.isInstanceOf(CArray.class)) {
+					if(value.isInstanceOf(CArray.TYPE)) {
 						List<MCPlayer> list = new ArrayList<>();
 						for(String index : ((CArray) value).stringKeySet()) {
 							Mixed v = ((CArray) value).get(index, value.getTarget());
@@ -2588,6 +2644,66 @@ public class PlayerEvents {
 		@Override
 		public boolean modifyEvent(String key, Mixed value, BindableEvent event) {
 			return false;
+		}
+	}
+
+	@api
+	public static class resource_pack_status extends AbstractEvent {
+
+		@Override
+		public String getName() {
+			return "resource_pack_status";
+		}
+
+		@Override
+		public Driver driver() {
+			return Driver.RESOURCE_PACK_STATUS;
+		}
+
+		@Override
+		public String docs() {
+			return "{player: <string match> | status: <string match> }"
+					+ " Called when a player's client responds to a request to download and load a resource pack."
+					+ " Two of these events may be fired for each request: first when the client accepts the pack,"
+					+ " and later when the client successfully loads (or fails to download) the pack."
+					+ " {player | status: The resource pack status received from the client, one of: "
+					+ StringUtils.Join(MCResourcePackStatus.values(), ", ", ", or ") + "}"
+					+ " {}"
+					+ " {}";
+		}
+
+		@Override
+		public boolean matches(Map<String, Mixed> prefilter, BindableEvent event) throws PrefilterNonMatchException {
+			if(event instanceof MCPlayerResourcePackEvent) {
+				MCPlayerResourcePackEvent prpe = (MCPlayerResourcePackEvent) event;
+				Prefilters.match(prefilter, "player", prpe.getPlayer().getName(), PrefilterType.STRING_MATCH);
+				Prefilters.match(prefilter, "status", prpe.getStatus().name(), PrefilterType.STRING_MATCH);
+				return true;
+			} else {
+				return false;
+			}
+		}
+
+		@Override
+		public Map<String, Mixed> evaluate(BindableEvent event) throws EventException {
+			Map<String, Mixed> map = evaluate_helper(event);
+			map.put("status", new CString(((MCPlayerResourcePackEvent) event).getStatus().name(), Target.UNKNOWN));
+			return map;
+		}
+
+		@Override
+		public boolean modifyEvent(String key, Mixed value, BindableEvent event) {
+			return false;
+		}
+
+		@Override
+		public MSVersion since() {
+			return MSVersion.V3_3_4;
+		}
+
+		@Override
+		public BindableEvent convert(CArray manualObject, Target t) {
+			return null;
 		}
 	}
 }

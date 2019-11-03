@@ -48,6 +48,7 @@ public class BasicLogicTest {
 
 	public BasicLogicTest() throws Exception {
 		env = Static.GenerateStandaloneEnvironment();
+		env = env.cloneAndAdd(new CommandHelperEnvironment());
 	}
 
 	@BeforeClass
@@ -391,6 +392,12 @@ public class BasicLogicTest {
 	public void testDor() throws Exception {
 		SRun("msg(dor('', 'b'))", fakePlayer);
 		verify(fakePlayer).sendMessage("b");
+	}
+
+	@Test
+	public void testDor2() throws Exception {
+		SRun("msg(typeof(dor('', null)))", fakePlayer);
+		verify(fakePlayer).sendMessage("null");
 	}
 
 	@Test

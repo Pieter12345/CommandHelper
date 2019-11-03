@@ -7,11 +7,14 @@ import com.laytonsmith.core.MethodScriptCompiler;
 import com.laytonsmith.core.ParseTree;
 import com.laytonsmith.core.Security;
 import com.laytonsmith.core.constructs.Target;
+import com.laytonsmith.core.environments.GlobalEnv;
 import com.laytonsmith.core.exceptions.CRE.CREIOException;
 import com.laytonsmith.core.exceptions.CRE.CREIncludeException;
 import com.laytonsmith.core.exceptions.CRE.CRESecurityException;
 import com.laytonsmith.core.exceptions.ConfigCompileException;
 import com.laytonsmith.core.exceptions.ConfigCompileGroupException;
+import com.laytonsmith.core.profiler.ProfilePoint;
+import com.laytonsmith.core.profiler.Profiler;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,14 +44,21 @@ public class IncludeCache {
 		}
 		MSLog.GetLogger().Log(TAG, LogLevel.VERBOSE, "Cache does not already contain file. Compiling and caching.", t);
 		//We have to pull the file from the FS, and compile it.
-		if(!Security.CheckSecurity(file)) {
-			throw new CRESecurityException("The script cannot access " + file
-					+ " due to restrictions imposed by the base-dir setting.", t);
-		}
 		MSLog.GetLogger().Log(TAG, LogLevel.VERBOSE, "Security check passed", t);
+		Profiler profiler = env.getEnv(GlobalEnv.class).GetProfiler();
 		try {
+			if(!Security.CheckSecurity(file)) {
+				throw new CRESecurityException("The script cannot access " + file
+						+ " due to restrictions imposed by the base-dir setting.", t);
+			}
 			String s = new ZipReader(file).getFileContents();
-			ParseTree tree = MethodScriptCompiler.compile(MethodScriptCompiler.lex(s, file, true), env);
+			ProfilePoint p = profiler.start("Compiling " + file, LogLevel.WARNING);
+			ParseTree tree;
+			try {
+				tree = MethodScriptCompiler.compile(MethodScriptCompiler.lex(s, env, file, true), env, env.getEnvClasses());
+			} finally {
+				p.stop();
+			}
 			MSLog.GetLogger().Log(TAG, LogLevel.VERBOSE, "Compilation succeeded, adding to cache.", t);
 			IncludeCache.add(file, tree);
 			return tree;
@@ -64,7 +74,7 @@ public class IncludeCache {
 			}
 			throw new CREIncludeException(b.toString(), t);
 		} catch (IOException ex) {
-			throw new CREIOException("The script at " + file + " could not be found or read in.", t);
+			throw new CREIOException("The script at " + file + " could not be found or read in.", t, ex);
 		}
 	}
 

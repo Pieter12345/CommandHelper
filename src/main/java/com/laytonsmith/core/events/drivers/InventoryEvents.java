@@ -2,6 +2,7 @@ package com.laytonsmith.core.events.drivers;
 
 import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.Version;
+import com.laytonsmith.abstraction.MCEnchantmentOffer;
 import com.laytonsmith.abstraction.MCHumanEntity;
 import com.laytonsmith.abstraction.MCInventory;
 import com.laytonsmith.abstraction.MCItemStack;
@@ -62,7 +63,7 @@ public class InventoryEvents {
 
 		@Override
 		public String docs() {
-			return "{virtual: <boolean> Whether or not this inventory is virtually stored in CH"
+			return "{virtual: <boolean match> Whether or not this inventory is virtually stored in CH"
 					+ " | slottype: <macro> The type of slot being clicked, can be "
 					+ StringUtils.Join(MCSlotType.values(), ", ", ", or ")
 					+ " | clicktype: <macro> One of " + StringUtils.Join(MCClickType.values(), ", ", ", or ")
@@ -88,7 +89,7 @@ public class InventoryEvents {
 			Map<String, Mixed> prefilter = event.getPrefilter();
 			if(prefilter.containsKey("slotitem")) {
 				Mixed type = prefilter.get("slotitem");
-				if(type.isInstanceOf(CString.class) && type.val().contains(":") || ArgumentValidation.isNumber(type)) {
+				if(type.isInstanceOf(CString.TYPE) && type.val().contains(":") || ArgumentValidation.isNumber(type)) {
 					MCItemStack is = Static.ParseItemNotation(null, prefilter.get("slotitem").val(), 1, event.getTarget());
 					prefilter.put("slotitem", new CString(is.getType().getName(), event.getTarget()));
 					MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The item notation format for the \"slotitem\" prefilter"
@@ -208,7 +209,7 @@ public class InventoryEvents {
 
 		@Override
 		public String docs() {
-			return "{virtual: <boolean> Whether or not this inventory is virtually stored in CH"
+			return "{virtual: <boolean match> Whether or not this inventory is virtually stored in CH"
 					+ " | world: <macro> World name"
 					+ " | type: <string match> Can be " + StringUtils.Join(MCDragType.values(), ", ", ", or ")
 					+ " | cursoritem: <string match> old item type held by the cursor before event starts}"
@@ -230,7 +231,7 @@ public class InventoryEvents {
 			Map<String, Mixed> prefilter = event.getPrefilter();
 			if(prefilter.containsKey("cursoritem")) {
 				Mixed type = prefilter.get("cursoritem");
-				if(type.isInstanceOf(CString.class) && type.val().contains(":") || ArgumentValidation.isNumber(type)) {
+				if(type.isInstanceOf(CString.TYPE) && type.val().contains(":") || ArgumentValidation.isNumber(type)) {
 					MCItemStack is = Static.ParseItemNotation(null, prefilter.get("cursoritem").val(), 1, event.getTarget());
 					prefilter.put("cursoritem", new CString(is.getType().getName(), event.getTarget()));
 					MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The item notation format for the \"cursoritem\" prefilter"
@@ -346,7 +347,7 @@ public class InventoryEvents {
 
 		@Override
 		public String docs() {
-			return "{virtual: <boolean> Whether or not this inventory is virtually stored in CH} "
+			return "{virtual: <boolean match> Whether or not this inventory is virtually stored in CH} "
 					+ "Fired when a player opens an inventory. "
 					+ "{player: The player | inventory: the inventory items in this inventory"
 					+ " | inventorytype: type of inventory | virtual"
@@ -428,7 +429,7 @@ public class InventoryEvents {
 
 		@Override
 		public String docs() {
-			return "{virtual: <boolean> Whether or not this inventory is virtually stored in CH} "
+			return "{virtual: <boolean match> Whether or not this inventory is virtually stored in CH} "
 					+ "Fired when a player closes an inventory. "
 					+ "{player: The player | inventory: the inventory items in this inventory"
 					+ " | inventorytype: type of inventory | virtual"
@@ -634,30 +635,31 @@ public class InventoryEvents {
 		@Override
 		public Map<String, Mixed> evaluate(BindableEvent event) throws EventException {
 			if(event instanceof MCPrepareItemEnchantEvent) {
+				Target t = Target.UNKNOWN;
 				MCPrepareItemEnchantEvent e = (MCPrepareItemEnchantEvent) event;
 				Map<String, Mixed> map = evaluate_helper(event);
 
-				map.put("player", new CString(e.getEnchanter().getName(), Target.UNKNOWN));
-				map.put("item", ObjectGenerator.GetGenerator().item(e.getItem(), Target.UNKNOWN));
-				map.put("inventorytype", new CString(e.getInventory().getType().name(), Target.UNKNOWN));
-				map.put("enchantmentbonus", new CInt(e.getEnchantmentBonus(), Target.UNKNOWN));
+				map.put("player", new CString(e.getEnchanter().getName(), t));
+				map.put("item", ObjectGenerator.GetGenerator().item(e.getItem(), t));
+				map.put("inventorytype", new CString(e.getInventory().getType().name(), t));
+				map.put("enchantmentbonus", new CInt(e.getEnchantmentBonus(), t));
 
-				int[] expCosts = e.getExpLevelCostsOffered();
-				CArray expCostsCArray = new CArray(Target.UNKNOWN);
+				CArray expCostsCArray = new CArray(t);
 
-				for(int i = 0; i < expCosts.length; i++) {
-					int j = expCosts[i];
-					expCostsCArray.push(new CInt(j, Target.UNKNOWN), i, Target.UNKNOWN);
+				MCEnchantmentOffer[] offers = e.getOffers();
+				for(int i = 0; i < offers.length; i++) {
+					MCEnchantmentOffer offer = offers[i];
+					expCostsCArray.push(new CInt(offer.getCost(), t), t);
 				}
 
 				map.put("expcosts", expCostsCArray);
 
 				CArray loc = ObjectGenerator.GetGenerator().location(e.getEnchantBlock().getLocation());
 
-				loc.remove(new CString("yaw", Target.UNKNOWN));
-				loc.remove(new CString("pitch", Target.UNKNOWN));
-				loc.remove(new CString("4", Target.UNKNOWN));
-				loc.remove(new CString("5", Target.UNKNOWN));
+				loc.remove(new CString("yaw", t));
+				loc.remove(new CString("pitch", t));
+				loc.remove(new CString("4", t));
+				loc.remove(new CString("5", t));
 
 				map.put("location", loc);
 
@@ -675,31 +677,30 @@ public class InventoryEvents {
 		@Override
 		public boolean modifyEvent(String key, Mixed value, BindableEvent event) {
 			if(event instanceof MCPrepareItemEnchantEvent) {
+				Target t = value.getTarget();
 				MCPrepareItemEnchantEvent e = (MCPrepareItemEnchantEvent) event;
 
 				if(key.equalsIgnoreCase("item")) {
-					e.setItem(ObjectGenerator.GetGenerator().item(value, value.getTarget()));
+					e.setItem(ObjectGenerator.GetGenerator().item(value, t));
 					return true;
 				}
 
 				if(key.equalsIgnoreCase("expcosts")) {
-					if(value.isInstanceOf(CArray.class)) {
+					if(value.isInstanceOf(CArray.TYPE)) {
 						CArray cExpCosts = (CArray) value;
 						if(!cExpCosts.inAssociativeMode()) {
-							int[] expCosts = e.getExpLevelCostsOffered();
+							MCEnchantmentOffer[] offers = e.getOffers();
 
 							for(int i = 0; i <= 2; i++) {
-								if(cExpCosts.get(i, value.getTarget()).isInstanceOf(CInt.class)) {
-									expCosts[i] = (int) ((CInt) cExpCosts.get(i, value.getTarget())).getInt();
-								} else {
-									throw new CREFormatException("Expected an intger at index " + i + "!", value.getTarget());
-								}
+								MCEnchantmentOffer offer = offers[i];
+								Mixed cost = cExpCosts.get(i, t);
+								offer.setCost(Static.getInt32(cost, t));
 							}
 						} else {
-							throw new CREFormatException("Expected a normal array!", value.getTarget());
+							throw new CREFormatException("Expected a normal array!", t);
 						}
 					} else {
-						throw new CREFormatException("Expected an array!", value.getTarget());
+						throw new CREFormatException("Expected an array!", t);
 					}
 				}
 			}
@@ -723,7 +724,7 @@ public class InventoryEvents {
 
 		@Override
 		public String docs() {
-			return "{player: <string>}"
+			return "{player: <string match>}"
 					+ " Fires when a player changes which quickbar slot they have selected."
 					+ " {player | to | from: the slot the player is switching from}"
 					+ " {to: the slot that the player is switching to}"
@@ -810,7 +811,7 @@ public class InventoryEvents {
 			Map<String, Mixed> prefilter = event.getPrefilter();
 			if(prefilter.containsKey("main_hand")) {
 				Mixed type = prefilter.get("main_hand");
-				if(type.isInstanceOf(CString.class) && type.val().contains(":") || ArgumentValidation.isNumber(type)) {
+				if(type.isInstanceOf(CString.TYPE) && type.val().contains(":") || ArgumentValidation.isNumber(type)) {
 					MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The item notation format in the \"main_hand\""
 							+ " prefilter in " + getName() + " is deprecated.", event.getTarget());
 					MCItemStack is = Static.ParseItemNotation(null, prefilter.get("main_hand").val(), 1, event.getTarget());
@@ -819,7 +820,7 @@ public class InventoryEvents {
 			}
 			if(prefilter.containsKey("off_hand")) {
 				Mixed type = prefilter.get("off_hand");
-				if(type.isInstanceOf(CString.class) && type.val().contains(":") || ArgumentValidation.isNumber(type)) {
+				if(type.isInstanceOf(CString.TYPE) && type.val().contains(":") || ArgumentValidation.isNumber(type)) {
 					MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The item notation format in the \"off_hand\""
 							+ " prefilter in " + getName() + " is deprecated.", event.getTarget());
 					MCItemStack is = Static.ParseItemNotation(null, prefilter.get("off_hand").val(), 1, event.getTarget());
@@ -969,7 +970,7 @@ public class InventoryEvents {
 					return true;
 				}
 				if("matrix".equals(key)) {
-					if(value.isInstanceOf(CArray.class)) {
+					if(value.isInstanceOf(CArray.TYPE)) {
 						CArray va = (CArray) value;
 						MCItemStack[] old = e.getInventory().getMatrix();
 						MCItemStack[] repl = new MCItemStack[old.length];

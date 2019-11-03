@@ -12,6 +12,7 @@ import com.laytonsmith.PureUtilities.Common.StringUtils;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -123,7 +124,8 @@ public class ClassMirrorVisitor extends ClassVisitor {
 				new ModifierMirror(ModifierMirror.Type.FIELD, access),
 				new ClassReferenceMirror(desc),
 				name,
-				value
+				value,
+				signature
 		);
 		return new FieldVisitor(ASM5, super.visitField(access, name, desc, signature, value)) {
 			@Override
@@ -162,7 +164,7 @@ public class ClassMirrorVisitor extends ClassVisitor {
 		for(Type type : Type.getArgumentTypes(desc)) {
 			parameterMirrors.add(new ClassReferenceMirror(type.getDescriptor()));
 		}
-		AbstractMethodMirror methodMirror;
+		final AbstractMethodMirror methodMirror;
 		if(ConstructorMirror.INIT.equals(name)) {
 			methodMirror = new ConstructorMirror(
 					classInfo.classReferenceMirror,
@@ -171,7 +173,8 @@ public class ClassMirrorVisitor extends ClassVisitor {
 					name,
 					parameterMirrors,
 					(access & ACC_VARARGS) == ACC_VARARGS,
-					(access & ACC_SYNTHETIC) == ACC_SYNTHETIC
+					(access & ACC_SYNTHETIC) == ACC_SYNTHETIC,
+					signature
 			);
 		} else {
 			methodMirror = new MethodMirror(
@@ -181,10 +184,11 @@ public class ClassMirrorVisitor extends ClassVisitor {
 					name,
 					parameterMirrors,
 					(access & ACC_VARARGS) == ACC_VARARGS,
-					(access & ACC_SYNTHETIC) == ACC_SYNTHETIC
+					(access & ACC_SYNTHETIC) == ACC_SYNTHETIC,
+					signature
 			);
 		}
-		final AbstractMethodMirror finalMethodMirror = methodMirror;
+
 		return new MethodVisitor(ASM5, super.visitMethod(access, name, desc, signature, exceptions)) {
 			@Override
 			public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
@@ -192,14 +196,26 @@ public class ClassMirrorVisitor extends ClassVisitor {
 				return new AnnotationMirrorVisitor(super.visitAnnotation(desc, visible), annotationMirror) {
 					@Override
 					public void visitEnd() {
-						finalMethodMirror.addAnnotation(annotationMirror);
+						methodMirror.addAnnotation(annotationMirror);
 					}
 				};
 			}
 
 			@Override
+			public void visitLineNumber(int line, Label start) {
+				// Each line of code will be visited here. We only want the lowest line number though, since that's
+				// the closest to the method declaration line, which is what we're really after.
+				int lowest = methodMirror.getLineNumber();
+				if(lowest == 0) {
+					methodMirror.setLineNumber(line);
+				} else {
+					methodMirror.setLineNumber(Math.min(lowest, line));
+				}
+			}
+
+			@Override
 			public void visitEnd() {
-				classInfo.methods.add(finalMethodMirror);
+				classInfo.methods.add(methodMirror);
 				super.visitEnd();
 			}
 		};

@@ -117,7 +117,10 @@ public class Regex {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(!Construct.IsDynamicHelper(children.get(0).getData())) {
 				getPattern(children.get(0).getData(), t);
 			}
@@ -216,7 +219,10 @@ public class Regex {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(!Construct.IsDynamicHelper(children.get(0).getData())) {
 				getPattern(children.get(0).getData(), t);
 			}
@@ -305,7 +311,10 @@ public class Regex {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			ParseTree data = children.get(0);
 			if(!Construct.IsDynamicHelper(data.getData())) {
 				String pattern = data.getData().val();
@@ -420,7 +429,10 @@ public class Regex {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			ParseTree data = children.get(0);
 			if(!Construct.IsDynamicHelper(data.getData())) {
 				String pattern = data.getData().val();
@@ -506,7 +518,10 @@ public class Regex {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(!Construct.IsDynamicHelper(children.get(0).getData())) {
 				getPattern(children.get(0).getData(), t);
 			}
@@ -598,7 +613,7 @@ public class Regex {
 		String regex = "";
 		int flags = 0;
 		String sflags = "";
-		if(c.isInstanceOf(CArray.class)) {
+		if(c.isInstanceOf(CArray.TYPE)) {
 			CArray ca = (CArray) c;
 			regex = ca.get(0, t).val();
 			sflags = ca.get(1, t).val();
@@ -619,7 +634,7 @@ public class Regex {
 		try {
 			return Pattern.compile(regex, flags);
 		} catch (PatternSyntaxException e) {
-			throw new CREFormatException(e.getMessage(), t);
+			throw new CREFormatException(e.getMessage(), c.getTarget());
 		}
 	}
 

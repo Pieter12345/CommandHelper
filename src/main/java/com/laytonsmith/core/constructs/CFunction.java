@@ -38,6 +38,33 @@ public class CFunction extends Construct {
 	}
 
 	/**
+	 * Returns true if this CFunction is expected to represent a procedure based on the format.
+	 *
+	 * @return
+	 */
+	public boolean hasProcedure() {
+		return val().charAt(0) == '_' && val().charAt(1) != '_';
+	}
+
+	/**
+	 * Returns true if this CFunction is expected to represent an IVariable based on the format.
+	 *
+	 * @return
+	 */
+	public boolean hasIVariable() {
+		return val().charAt(0) == '@';
+	}
+
+	/**
+	 * Returns true if this CFunction is expected to represent a function based on the format.
+	 *
+	 * @return
+	 */
+	public boolean hasFunction() {
+		return !hasProcedure() && !hasIVariable();
+	}
+
+	/**
 	 * Returns the underlying function for this construct.
 	 *
 	 * @return
@@ -45,7 +72,7 @@ public class CFunction extends Construct {
 	 */
 	public Function getFunction() throws ConfigCompileException {
 		if(function == null) {
-			function = (Function) FunctionList.getFunction(val(), this.getTarget());
+			function = (Function) FunctionList.getFunction(val(), null, this.getTarget());
 		}
 		return function;
 	}
@@ -72,7 +99,7 @@ public class CFunction extends Construct {
 	}
 
 	/**
-	 * Returns true if the data in the ParseTree is a funciton, and is of the specified type.
+	 * Returns true if the data in the ParseTree is a function, and is of the specified type.
 	 *
 	 * @param tree
 	 * @param ofType

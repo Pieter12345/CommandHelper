@@ -1,6 +1,7 @@
 package com.laytonsmith.core;
 
 import java.io.File;
+import java.io.IOException;
 
 /**
  *
@@ -18,20 +19,26 @@ public final class Security {
 	 *
 	 * @param location
 	 * @return
+	 * @throws java.io.IOException
 	 */
-	public static boolean CheckSecurity(String location) {
+	public static boolean CheckSecurity(String location) throws IOException {
 		if(on) {
-			String pref = Prefs.BaseDir();
-			if(pref.trim().isEmpty()) {
-				pref = ".";
+			// If the location is within any of the paths, it is allowed.
+			for(String pref : Prefs.BaseDir().split(";", -1)) {
+				if(pref.trim().isEmpty()) {
+					pref = ".";
+				}
+				File baseDir = new File(pref);
+				String baseFinal = baseDir.getCanonicalPath();
+				if(baseFinal.endsWith(".")) {
+					baseFinal = baseFinal.substring(0, baseFinal.length() - 1);
+				}
+				File loc = new File(location);
+				if(loc.getCanonicalPath().startsWith(baseFinal)) {
+					return true;
+				}
 			}
-			File baseDir = new File(pref);
-			String baseFinal = baseDir.getAbsolutePath();
-			if(baseFinal.endsWith(".")) {
-				baseFinal = baseFinal.substring(0, baseFinal.length() - 1);
-			}
-			File loc = new File(location);
-			return loc.getAbsolutePath().startsWith(baseFinal);
+			return false;
 		} else {
 			return true;
 		}
@@ -42,8 +49,9 @@ public final class Security {
 	 *
 	 * @param location
 	 * @return
+	 * @throws java.io.IOException
 	 */
-	public static boolean CheckSecurity(File location) {
+	public static boolean CheckSecurity(File location) throws IOException {
 		return CheckSecurity(location.getAbsolutePath());
 	}
 

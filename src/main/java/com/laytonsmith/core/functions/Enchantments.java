@@ -12,6 +12,8 @@ import com.laytonsmith.core.ObjectGenerator;
 import com.laytonsmith.core.Optimizable;
 import com.laytonsmith.core.ParseTree;
 import com.laytonsmith.core.Static;
+import com.laytonsmith.core.compiler.CompilerEnvironment;
+import com.laytonsmith.core.compiler.CompilerWarning;
 import com.laytonsmith.core.compiler.FileOptions;
 import com.laytonsmith.core.constructs.CArray;
 import com.laytonsmith.core.constructs.CBoolean;
@@ -69,7 +71,7 @@ public class Enchantments {
 	 * @return
 	 */
 	public static int ConvertLevel(Mixed value) {
-		if(value.isInstanceOf(CInt.class)) {
+		if(value.isInstanceOf(CInt.TYPE)) {
 			return (int) ((CInt) value).getInt();
 		}
 		String lc = value.val().toLowerCase().trim();
@@ -137,7 +139,7 @@ public class Enchantments {
 
 	@api(environments = {CommandHelperEnvironment.class})
 	@hide("Deprecated for enchant_item().")
-	public static class enchant_inv extends AbstractFunction {
+	public static class enchant_inv extends AbstractFunction implements Optimizable {
 
 		@Override
 		public String getName() {
@@ -152,6 +154,7 @@ public class Enchantments {
 		@Override
 		public String docs() {
 			return "void {[player], slot, type, level} Adds an enchantment to an item in the player's inventory."
+					+ " (deprecated for {{function|enchant_item}}) ----"
 					+ " Type can be a single string, or an array of enchantment names. If slot is null, the currently"
 					+ " selected slot is used. If the enchantment cannot be applied to the specified item,"
 					+ " an EnchantmentException is thrown, and if the level specified is not valid, a RangeException"
@@ -197,14 +200,14 @@ public class Enchantments {
 			}
 
 			CArray enchantArray = new CArray(t);
-			if(!(args[2 - offset].isInstanceOf(CArray.class))) {
+			if(!(args[2 - offset].isInstanceOf(CArray.TYPE))) {
 				enchantArray.push(args[2 - offset], t);
 			} else {
 				enchantArray = (CArray) args[2 - offset];
 			}
 
 			CArray levelArray = new CArray(t);
-			if(!(args[3 - offset].isInstanceOf(CArray.class))) {
+			if(!(args[3 - offset].isInstanceOf(CArray.TYPE))) {
 				levelArray.push(args[3 - offset], t);
 			} else {
 				levelArray = (CArray) args[3 - offset];
@@ -224,6 +227,21 @@ public class Enchantments {
 			}
 			return CVoid.VOID;
 		}
+
+		@Override
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
+			env.getEnv(CompilerEnvironment.class).addCompilerWarning(fileOptions,
+					new CompilerWarning(getName() + " is deprecated for enchant_item().", t, null));
+			return null;
+		}
+
+		@Override
+		public Set<Optimizable.OptimizationOption> optimizationOptions() {
+			return EnumSet.of(Optimizable.OptimizationOption.OPTIMIZE_DYNAMIC);
+		}
 	}
 
 	@api(environments = {CommandHelperEnvironment.class})
@@ -236,12 +254,12 @@ public class Enchantments {
 
 		@Override
 		public Integer[] numArgs() {
-			return new Integer[]{3};
+			return new Integer[]{3, 4};
 		}
 
 		@Override
 		public String docs() {
-			return "void {[player], slot, type, level | [player], slot, enchantsArray} Adds enchantments to an item in"
+			return "void {[player], slot, type, level | player, slot, enchantsArray} Adds enchantments to an item in"
 					+ " the player's inventory. A single enchantment type and level can be specified or an"
 					+ " enchantment array may be given. If slot is null, the currently selected slot is used."
 					+ " If an enchantment cannot be applied to the specified item, an EnchantmentException is thrown."
@@ -275,7 +293,7 @@ public class Enchantments {
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			MCPlayer p;
 			int offset = 0;
-			if(args.length == 4 || args.length == 3 && args[2].isInstanceOf(CArray.class)) {
+			if(args.length == 4 || args.length == 3 && args[2].isInstanceOf(CArray.TYPE)) {
 				p = Static.GetPlayer(args[0].val(), t);
 				offset = 1;
 			} else {
@@ -287,7 +305,7 @@ public class Enchantments {
 				throw new CRECastException("There is no item at slot " + args[offset], t);
 			}
 
-			if(args[args.length - 1].isInstanceOf(CArray.class)) {
+			if(args[args.length - 1].isInstanceOf(CArray.TYPE)) {
 				CArray ca = (CArray) args[args.length - 1];
 				Map<MCEnchantment, Integer> enchants = ObjectGenerator.GetGenerator().enchants(ca, t);
 				for(Map.Entry<MCEnchantment, Integer> en : enchants.entrySet()) {
@@ -307,7 +325,7 @@ public class Enchantments {
 
 	@api(environments = {CommandHelperEnvironment.class})
 	@hide("Deprecated for remove_item_enchant()")
-	public static class enchant_rm_inv extends AbstractFunction {
+	public static class enchant_rm_inv extends AbstractFunction implements Optimizable {
 
 		@Override
 		public String getName() {
@@ -322,6 +340,7 @@ public class Enchantments {
 		@Override
 		public String docs() {
 			return "void {[player], slot, type} Removes an enchantment from an item."
+					+ " (deprecated for {{function|remove_item_enchant}}) ----"
 					+ " The type may be a valid enchantment, or an array of enchantment names."
 					+ " It can also be null, and all enchantments will be removed. If an enchantment is specified,"
 					+ " and the item is not enchanted with that, it is simply ignored.";
@@ -362,7 +381,7 @@ public class Enchantments {
 			}
 
 			CArray enchantArray = new CArray(t);
-			if(!(args[2 - offset].isInstanceOf(CArray.class)) && !(args[2 - offset] instanceof CNull)) {
+			if(!(args[2 - offset].isInstanceOf(CArray.TYPE)) && !(args[2 - offset] instanceof CNull)) {
 				enchantArray.push(args[2 - offset], t);
 			} else if(args[2 - offset] instanceof CNull) {
 				for(MCEnchantment e : is.getEnchantments().keySet()) {
@@ -376,6 +395,21 @@ public class Enchantments {
 				is.removeEnchantment(e);
 			}
 			return CVoid.VOID;
+		}
+
+		@Override
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
+			env.getEnv(CompilerEnvironment.class).addCompilerWarning(fileOptions,
+					new CompilerWarning(getName() + " is deprecated for remove_item_enchant().", t, null));
+			return null;
+		}
+
+		@Override
+		public Set<Optimizable.OptimizationOption> optimizationOptions() {
+			return EnumSet.of(Optimizable.OptimizationOption.OPTIMIZE_DYNAMIC);
 		}
 	}
 
@@ -437,7 +471,7 @@ public class Enchantments {
 				throw new CRECastException("There is no item at slot " + args[offset], t);
 			}
 
-			if(args[offset + 1].isInstanceOf(CArray.class)) {
+			if(args[offset + 1].isInstanceOf(CArray.TYPE)) {
 				for(String name : ((CArray) args[offset + 1]).stringKeySet()) {
 					MCEnchantment e = GetEnchantment(name, t);
 					is.removeEnchantment(e);
@@ -456,7 +490,7 @@ public class Enchantments {
 
 	@api(environments = {CommandHelperEnvironment.class})
 	@hide("Deprecated for get_item_enchants()")
-	public static class get_enchant_inv extends AbstractFunction {
+	public static class get_enchant_inv extends AbstractFunction implements Optimizable {
 
 		@Override
 		public String getName() {
@@ -471,7 +505,8 @@ public class Enchantments {
 		@Override
 		public String docs() {
 			return "array {[player], slot} Returns an array of arrays of the enchantments and their levels on the given"
-					+ " item. For example: array(array(DAMAGE_ALL, DAMAGE_UNDEAD), array(1, 2))";
+					+ " item. (deprecated for {{function|get_item_enchants}}) ----"
+					+ " For example: array(array(DAMAGE_ALL, DAMAGE_UNDEAD), array(1, 2))";
 		}
 
 		@Override
@@ -522,6 +557,21 @@ public class Enchantments {
 			}
 
 			return new CArray(t, enchants, levels);
+		}
+
+		@Override
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
+			env.getEnv(CompilerEnvironment.class).addCompilerWarning(fileOptions,
+					new CompilerWarning(getName() + " is deprecated for get_item_enchants().", t, null));
+			return null;
+		}
+
+		@Override
+		public Set<Optimizable.OptimizationOption> optimizationOptions() {
+			return EnumSet.of(Optimizable.OptimizationOption.OPTIMIZE_DYNAMIC);
 		}
 	}
 
@@ -602,6 +652,7 @@ public class Enchantments {
 		public String docs() {
 			return "boolean {name, item} Given an enchantment name and an item type,"
 					+ " returns whether or not that item can be enchanted with that enchantment."
+					+ " (deprecated for {{function|can_enchant_item}}) ----"
 					+ " Throws an EnchantmentException if the name is not a valid enchantment type.";
 		}
 
@@ -634,9 +685,12 @@ public class Enchantments {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs, List<ParseTree> children,
+				FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
-			MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, getName() + " is deprecated for can_enchant_item()", t);
+			env.getEnv(CompilerEnvironment.class).addCompilerWarning(fileOptions,
+					new CompilerWarning(getName() + " is deprecated for can_enchant_item().", t, null));
 			return null;
 		}
 
@@ -786,7 +840,7 @@ public class Enchantments {
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			MCItemStack is;
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				is = ObjectGenerator.GetGenerator().item(args[0], t);
 			} else {
 				is = Static.ParseItemNotation(null, args[0].val(), 1, t);
@@ -810,10 +864,12 @@ public class Enchantments {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs, List<ParseTree> children,
+				FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() == 1
-					&& (children.get(0).getData().isInstanceOf(CString.class) || children.get(0).getData().isInstanceOf(CInt.class))) {
+					&& (children.get(0).getData().isInstanceOf(CString.TYPE) || children.get(0).getData().isInstanceOf(CInt.TYPE))) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
 			}
 			return null;

@@ -4,6 +4,7 @@ import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.abstraction.StaticLayer;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.annotations.core;
+import com.laytonsmith.annotations.hide;
 import com.laytonsmith.core.ArgumentValidation;
 import com.laytonsmith.core.MSVersion;
 import com.laytonsmith.core.Optimizable;
@@ -55,7 +56,7 @@ public class EventBinding {
 
 	private static final AtomicInteger BIND_COUNTER = new AtomicInteger(0);
 
-	@api(environments = CommandHelperEnvironment.class)
+	@api
 	public static class bind extends AbstractFunction implements Optimizable, BranchStatement, VariableScope {
 
 		@Override
@@ -72,7 +73,7 @@ public class EventBinding {
 		public String docs() {
 			return "string {event_name, options, prefilter, event_obj, [custom_params], &lt;code&gt;} Binds some functionality to an event, so that"
 					+ " when said event occurs, the event handler will fire. Returns the id of this event, so it can be unregistered"
-					+ " later, if need be.";
+					+ " later, if need be. See more on the page detailing [[Events]].";
 		}
 
 		@Override
@@ -133,10 +134,10 @@ public class EventBinding {
 			ParseTree tree = nodes[nodes.length - 1];
 
 			//Check to see if our arguments are correct
-			if(!(options instanceof CNull || options.isInstanceOf(CArray.class))) {
+			if(!(options instanceof CNull || options.isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("The options must be an array or null", t);
 			}
-			if(!(prefilter instanceof CNull || prefilter.isInstanceOf(CArray.class))) {
+			if(!(prefilter instanceof CNull || prefilter.isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("The prefilters must be an array or null", t);
 			}
 			if(!(event_obj instanceof IVariable)) {
@@ -192,7 +193,10 @@ public class EventBinding {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 5) {
 				throw new CREInsufficientArgumentsException("bind accepts 5 or more parameters", t);
 			}
@@ -210,7 +214,7 @@ public class EventBinding {
 			try {
 				EventUtils.verifyEventName(name);
 			} catch (IllegalArgumentException ex) {
-				throw new ConfigCompileException(ex.getMessage(), t);
+				throw new ConfigCompileException(ex.getMessage(), children.get(0).getTarget());
 			}
 		}
 
@@ -276,7 +280,7 @@ public class EventBinding {
 		}
 	}
 
-	@api(environments = CommandHelperEnvironment.class)
+	@api
 	public static class unbind extends AbstractFunction {
 
 		@Override
@@ -347,7 +351,7 @@ public class EventBinding {
 		}
 	}
 
-	@api(environments = CommandHelperEnvironment.class)
+	@api
 	public static class cancel extends AbstractFunction {
 
 		@Override
@@ -460,6 +464,9 @@ public class EventBinding {
 	}
 
 	@api
+	@hide("At the time this function was hidden, it was completely broken. Before unhiding this function, implement a"
+			+ " working version, reviewing at least the following points: Should all events implement support for this?"
+			+ " Should usage of this function change to support getting event results (cancelled, modified)?")
 	public static class trigger extends AbstractFunction {
 
 		@Override
@@ -474,17 +481,20 @@ public class EventBinding {
 
 		@Override
 		public String docs() {
-			return "void {eventName, eventObject, [serverWide]} Manually triggers bound events. The event object passed to this function is "
-					+ " sent directly as-is to the bound events. Check the documentation for each event to see what is required."
-					+ " No checks will be done on the data here, but it is not recommended to fail to send all parameters required."
-					+ " If serverWide is true, the event is triggered directly in the server, unless it is a CommandHelper specific"
-					+ " event, in which case, serverWide is irrelevant. Defaults to false, which means that only CommandHelper code"
-					+ " will receive the event.";
+			return "void {eventName, eventObject, [serverWide]} Manually triggers bound events. The event object passed"
+					+ " to this function is sent directly as-is to the bound events. Check the documentation for each"
+					+ " event to see what is required. No checks will be done on the data here, but it is not"
+					+ " recommended to fail to send all parameters required."
+					+ " If serverWide is true, the event is triggered directly in the server, unless it is a"
+					+ " CommandHelper specific event, in which case, serverWide is irrelevant."
+					+ " Defaults to false, which means that only CommandHelper code will receive the event."
+					+ " Throws a CastException when eventObject is not an array and not null."
+					+ " Throws a BindException when " + getName() + "() is not yet supported by the given event.";
 		}
 
 		@Override
 		public Class<? extends CREThrowable>[] thrown() {
-			return new Class[]{CRECastException.class};
+			return new Class[]{CRECastException.class, CREBindException.class};
 		}
 
 		@Override
@@ -507,7 +517,7 @@ public class EventBinding {
 			CArray obj = null;
 			if(args[1] instanceof CNull) {
 				obj = new CArray(t);
-			} else if(args[1].isInstanceOf(CArray.class)) {
+			} else if(args[1].isInstanceOf(CArray.TYPE)) {
 				obj = (CArray) args[1];
 			} else {
 				throw new CRECastException("The eventObject must be null, or an array", t);
@@ -521,7 +531,7 @@ public class EventBinding {
 		}
 	}
 
-	@api(environments = CommandHelperEnvironment.class)
+	@api
 	public static class modify_event extends AbstractFunction {
 
 		@Override
@@ -649,7 +659,7 @@ public class EventBinding {
 			if(args.length == 0) {
 				e.lock(null);
 			} else {
-				if(args[0].isInstanceOf(CArray.class)) {
+				if(args[0].isInstanceOf(CArray.TYPE)) {
 					CArray ca = (CArray) args[1];
 					for(int i = 0; i < ca.size(); i++) {
 						params.add(ca.get(i, t).val());

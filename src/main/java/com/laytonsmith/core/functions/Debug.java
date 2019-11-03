@@ -368,13 +368,13 @@ public class Debug {
 						+ TermColors.BRIGHT_WHITE + ivar.getDefinedType()
 						+ TermColors.RESET + " (actual type "
 						+ TermColors.BRIGHT_WHITE + val.typeof()
-						+ (val.isInstanceOf(Sizeable.class) ? ", length: " + ((Sizeable) val).size() : "")
+						+ (val.isInstanceOf(Sizeable.TYPE) ? ", length: " + ((Sizeable) val).size() : "")
 						+ TermColors.RESET + ") "
 						+ TermColors.CYAN + ivar.getVariableName()
 						+ TermColors.RESET + ": " + val.val());
 				return CVoid.VOID;
 			} else {
-				throw new CRECastException("Expecting an ivar, but recieved " + args[0].typeof().getSimpleName()
+				throw new CRECastException("Expecting an ivar, but received " + args[0].typeof().getSimpleName()
 						+ " instead", t);
 			}
 		}
@@ -385,7 +385,9 @@ public class Debug {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs, List<ParseTree> children,
+				FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() != 1) {
 				throw new ConfigCompileException(getName() + " expects 1 parameter, but " + children.size()
@@ -497,7 +499,7 @@ public class Debug {
 //				throw new ConfigRuntimeException("allow-debug-logging is currently set to false. To use " + this.getVariableName() + ", enable it in your preferences.", CRESecurityException.class, t);
 //			}
 //			Set<Event.Type> set = new HashSet<Event.Type>();
-//			if(args[0].isInstanceOf(CString.class)) {
+//			if(args[0].isInstanceOf(CString.TYPE)) {
 //				if(args[0].val().equals("*")) {
 //					for(Event.Type t : Event.Type.values()) {
 //						set.add(t);
@@ -510,7 +512,7 @@ public class Debug {
 //						throw new ConfigRuntimeException(args[0].val() + " is not a valid filter type. The filter log has not been changed.", CREFormatException.class, t);
 //					}
 //				}
-//			} else if(args[0].isInstanceOf(CArray.class)) {
+//			} else if(args[0].isInstanceOf(CArray.TYPE)) {
 //				for(String c : ((CArray) args[0]).keySet()) {
 //					try {
 //						set.add(Event.Type.valueOf(((CArray) args[0]).get(c, t).val().toUpperCase()));
@@ -572,10 +574,10 @@ public class Debug {
 //			if(!(Boolean) Static.getPreferences().getPreference("allow-debug-logging")) {
 //				throw new ConfigRuntimeException("allow-debug-logging is currently set to false. To use " + this.getVariableName() + ", enable it in your preferences.", CRESecurityException.class, t);
 //			}
-//			if(args[0].isInstanceOf(CString.class)) {
+//			if(args[0].isInstanceOf(CString.TYPE)) {
 //				EVENT_PLUGIN_FILTER.clear();
 //				EVENT_PLUGIN_FILTER.add(args[0].val().toUpperCase());
-//			} else if(args[0].isInstanceOf(CArray.class)) {
+//			} else if(args[0].isInstanceOf(CArray.TYPE)) {
 //				for(String c : ((CArray) args[0]).keySet()) {
 //					EVENT_PLUGIN_FILTER.add(((CArray) args[0]).get(c, t).val().toUpperCase());
 //				}

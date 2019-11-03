@@ -2,6 +2,7 @@ package com.laytonsmith.persistence;
 
 import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.DaemonManager;
+import com.laytonsmith.PureUtilities.Web.WebUtility;
 import com.laytonsmith.annotations.datasource;
 import com.laytonsmith.core.MSVersion;
 import com.laytonsmith.persistence.io.ConnectionMixinFactory;
@@ -13,6 +14,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -30,6 +33,7 @@ public class MySQLDataSource extends SQLDataSource {
 	private String password;
 	private String database;
 	private String table;
+	private Map<String, String> extraParameters = new HashMap<>();
 
 	private MySQLDataSource() {
 		super();
@@ -68,6 +72,7 @@ public class MySQLDataSource extends SQLDataSource {
 		}
 		//Escape any quotes in the table name, because we can't use prepared statements here
 		table = table.replace("`", "``");
+		extraParameters.putAll(WebUtility.getQueryMap(uri.getQuery()));
 		try {
 			connect();
 			//Create the table if it doesn't exist
@@ -76,7 +81,11 @@ public class MySQLDataSource extends SQLDataSource {
 				statement.executeUpdate(getTableCreationQuery(table));
 			}
 		} catch (IOException | SQLException ex) {
-			throw new DataSourceException("Could not connect to MySQL data source \"" + uri.toString() + "\": " + ex.getMessage(), ex);
+			throw new DataSourceException("Could not connect to MySQL data source \""
+					+ (password != null ? uri.toString().replace(password, "<password>") : uri.toString()) + "\""
+					+ " (using \""
+					+ (password != null ? getConnectionString().replace(password, "<password>") : getConnectionString())
+					+ "\" to connect): " + ex.getMessage(), ex);
 		}
 
 	}
@@ -113,10 +122,14 @@ public class MySQLDataSource extends SQLDataSource {
 	@Override
 	protected String getConnectionString() {
 		try {
-			return "jdbc:mysql://" + host + ":" + port + "/" + database + "?generateSimpleParameterMetadata=true"
+			String s = "jdbc:mysql://" + host + ":" + port + "/" + database + "?generateSimpleParameterMetadata=true"
 					+ "&jdbcCompliantTruncation=false"
 					+ (username == null ? "" : "&user=" + URLEncoder.encode(username, "UTF-8"))
 					+ (password == null ? "" : "&password=" + URLEncoder.encode(password, "UTF-8"));
+			if(!extraParameters.isEmpty()) {
+				s += "&" + WebUtility.encodeParameters(extraParameters);
+			}
+			return s;
 		} catch (UnsupportedEncodingException ex) {
 			throw new Error(ex);
 		}
@@ -191,7 +204,7 @@ public class MySQLDataSource extends SQLDataSource {
 
 	@Override
 	public String docs() {
-		return "MySQL {mysql://[user[:password]@]host[:port]/database/table}"
+		return "MySQL {mysql://[user[:password]@]host[:port]/database/table?extraParameters}"
 				+ " This type stores data in a MySQL database. Unlike the"
 				+ " file based systems, this is extremely efficient, but"
 				+ " requires a database connection already set up to work."
@@ -201,7 +214,10 @@ public class MySQLDataSource extends SQLDataSource {
 				+ " based data sources, without risking either data corruption,"
 				+ " or extremely low efficiency. The layout of the table"
 				+ " in the database is required to be of a specific format: <%SYNTAX|sql|"
-				+ getTableCreationQuery("testTable") + "%>";
+				+ getTableCreationQuery("testTable") + "%>\n\n"
+				+ "Extra parameters may provided to the MySQL connection, and they are"
+				+ " merged with the existing required parameters and sent through as"
+				+ " is to the server. They should be in the format \"a=1&b=2\".";
 	}
 
 	@Override

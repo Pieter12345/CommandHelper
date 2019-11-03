@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+// TODO: Add enum type to arg types, as well as providing hooks for autocomplete and custom argument validators
+
 /**
  * An ArgumentParser allows for programmatic registration of arguments, which
  * will be automatically parsed and validated. Additionally, automatically
@@ -449,6 +451,7 @@ public final class ArgumentParser {
 	 * A description of the command itself.
 	 */
 	String description = "";
+	String extendedDescription = "";
 	/**
 	 * The model for the arguments
 	 */
@@ -613,9 +616,9 @@ public final class ArgumentParser {
 				//If short code is false, we need to check to see if there is a short code, if so,
 				//this is an alias.
 				if(shortCode) {
-					b.append("-").append(shortArg);
+					b.append(TermColors.GREEN).append("-").append(shortArg).append(TermColors.RESET);
 				} else {
-					b.append("--").append(longArg);
+					b.append(TermColors.GREEN).append("--").append(longArg).append(TermColors.RESET);
 				}
 				b.append(": ");
 
@@ -664,10 +667,15 @@ public final class ArgumentParser {
 		}
 	}
 
-	public class ArgumentParserResults {
+	public final class ArgumentParserResults {
 
 		List<Argument> arguments = new ArrayList<>();
 		List<String> unclassified = new ArrayList<>();
+		List<String> rawArgs;
+
+		private ArgumentParserResults(List<String> rawArgs) {
+			this.rawArgs = new ArrayList<>(rawArgs);
+		}
 
 		private void updateArgument(Argument a) {
 			if(a == null) {
@@ -846,6 +854,23 @@ public final class ArgumentParser {
 		}
 
 		/**
+		 * Returns the list of values associated with the switch represented by this short code. If the switch
+		 * wasn't set, the default return value is returned instead.
+		 * @param flag
+		 * @param defaultReturn
+		 * @return
+		 * @throws com.laytonsmith.PureUtilities.ArgumentParser.ResultUseException
+		 */
+		public List<String> getStringListArgument(Character flag, List<String> defaultReturn)
+				throws ResultUseException {
+			List<String> d = getStringListArgument(flag);
+			if(d == null) {
+				return defaultReturn;
+			}
+			return d;
+		}
+
+		/**
 		 * Returns the list of values associated with the switch represented by
 		 * this long code. If the switch wasn't set, null is returned.
 		 *
@@ -855,6 +880,22 @@ public final class ArgumentParser {
 		 */
 		public List<String> getStringListArgument(String flag) throws ResultUseException {
 			return getStringListArgument(getArg(flag));
+		}
+
+		/**
+		 * Returns the list of values associated with the switch represented by this long code. If the switch
+		 * wasn't set, the default return value is returned instead.
+		 * @param flag
+		 * @param defaultReturn
+		 * @return
+		 * @throws com.laytonsmith.PureUtilities.ArgumentParser.ResultUseException
+		 */
+		public List<String> getStringListArgument(String flag, List<String> defaultReturn) throws ResultUseException {
+			List<String> d = getStringListArgument(flag);
+			if(d == null) {
+				return defaultReturn;
+			}
+			return d;
 		}
 
 		private List<String> getStringListArgument(Argument arg) {
@@ -961,6 +1002,14 @@ public final class ArgumentParser {
 			}
 			return b.toString();
 		}
+
+		/**
+		 * Returns a list of the raw, unprocessed arguments. This includes all arguments as is, with no processing.
+		 * @return
+		 */
+		public List<String> getRawArguments() {
+			return new ArrayList<>(rawArgs);
+		}
 	}
 
 	public static ArgumentParser GetParser() {
@@ -1020,11 +1069,28 @@ public final class ArgumentParser {
 	}
 
 	/**
+	 * Provides an extended description. This is not returned with {@link #getDescription()}, but is included
+	 * as part of the built description.
+	 * @param extendedDescription
+	 * @return
+	 */
+	public ArgumentParser addExtendedDescription(String extendedDescription) {
+		this.extendedDescription = extendedDescription;
+		return this;
+	}
+
+	/**
 	 * If set to true (which is the default), then unknown options will cause an error. If false,
 	 * they will not cause an error, and can even still be accessed in the results. However, this is
 	 * only recommended for situations where arguments are processed in a later step as well, if all
 	 * the possibly valid arguments are known up front, then this should generally remain true, so
 	 * as to fail faster and give the user a better overall experience.
+	 *
+	 * Also note that it is possible to escape dashes, so the argument parser doesn't accept the argument
+	 * as a known flag, but instead a literal, which can then be further processed later by another
+	 * argument parser, for instance. It may be better to instead instruct users to pass the arguments
+	 * through escaped, so that arguments can still be validated. (This works for both short and
+	 * long arguments, i.e. {@code \-s} or {@code \--long}.)
 	 *
 	 * @param errorOnUnknown
 	 * @return {@code this} for easier chaining.
@@ -1046,6 +1112,9 @@ public final class ArgumentParser {
 		//Now, we need to go through and get all the switch names in alphabetical
 		//order.
 		b.append("\t").append(this.description).append("\n\n");
+		if(!this.extendedDescription.equals("")) {
+			b.append("\t").append(this.extendedDescription).append("\n\n");
+		}
 		List<Character> shortCodes = new ArrayList<>();
 		List<String> longCodes = new ArrayList<>();
 		List<Character> shortCodesDone = new ArrayList<>();
@@ -1096,12 +1165,12 @@ public final class ArgumentParser {
 			}
 		}
 
-		b.append("Usage:\n\t");
+		b.append(TermColors.BOLD).append("Usage:\n\t").append(TermColors.RESET);
 		//Get the short flags first, then the long flags, then the short arguments, then the long arguments
 		List<String> parts = new ArrayList<>();
 		if(!shortFlags.isEmpty()) {
 			StringBuilder usage = new StringBuilder();
-			usage.append("[-");
+			usage.append("[").append("-");
 			for(Character c : shortFlags) {
 				usage.append(c);
 			}
@@ -1195,7 +1264,7 @@ public final class ArgumentParser {
 		}
 
 		if(flags.length() != 0) {
-			b.append("Flags");
+			b.append(TermColors.BOLD).append("Flags").append(TermColors.RESET);
 			if(hasShortCodeFlags) {
 				b.append(" (Short flags may be combined)");
 			}
@@ -1212,7 +1281,7 @@ public final class ArgumentParser {
 			} else if(flags.length() == 0) {
 				b.append("\tNo flags.\n");
 			} else {
-				b.append("Options:\n");
+				b.append(TermColors.BOLD).append("Options:\n").append(TermColors.RESET);
 			}
 		}
 
@@ -1230,10 +1299,9 @@ public final class ArgumentParser {
 	}
 
 	/**
-	 * Returns just the description that was registered with {
+	 * Returns just the description that was registered with {@link #addDescription(java.lang.String)}
 	 *
-	 * @see #addDescription(String)}.
-	 * @return The description, or null, if one has not been set yet.
+	 * @return The description, or empty string, if one has not been set yet.
 	 * @see #getBuiltDescription()
 	 */
 	public String getDescription() {
@@ -1355,7 +1423,7 @@ public final class ArgumentParser {
 	}
 
 	private ArgumentParserResults parse(List<String> args) throws ValidationException {
-		ArgumentParserResults results = new ArgumentParserResults();
+		ArgumentParserResults results = new ArgumentParserResults(args);
 		//Fill in results with all the defaults
 		for(Argument arg : argumentModel) {
 			if(arg.defaultVal != null) {
@@ -1385,6 +1453,9 @@ public final class ArgumentParser {
 				results.updateArgument(validateArgument(lastArg, looseArgs));
 				//This is a long arg, and so it is the only one.
 				arg = arg.substring(2);
+				if(errorOnUnknown && getArgument(arg) == null) {
+					throw new ValidationException("Unrecognized argument: " + arg);
+				}
 				lastArg = getArgument(arg);
 				continue;
 			}

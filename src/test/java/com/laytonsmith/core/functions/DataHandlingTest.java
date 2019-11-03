@@ -6,17 +6,22 @@ import com.laytonsmith.abstraction.MCServer;
 import com.laytonsmith.core.MethodScriptCompiler;
 import com.laytonsmith.core.Static;
 import com.laytonsmith.core.environments.CommandHelperEnvironment;
+import com.laytonsmith.core.exceptions.CRE.CRECastException;
+import com.laytonsmith.core.exceptions.ConfigCompileException;
 import com.laytonsmith.testing.StaticTest;
 import static com.laytonsmith.testing.StaticTest.RunCommand;
 import static com.laytonsmith.testing.StaticTest.SRun;
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
 import org.junit.After;
 import org.junit.AfterClass;
 import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,10 +35,12 @@ public class DataHandlingTest {
 	MCServer fakeServer;
 	MCPlayer fakePlayer;
 	com.laytonsmith.core.environments.Environment env;
+	static Set<Class<? extends com.laytonsmith.core.environments.Environment.EnvironmentImpl>> envs = com.laytonsmith.core.environments.Environment.getDefaultEnvClasses();
 
 	public DataHandlingTest() throws Exception {
 		StaticTest.InstallFakeServerFrontend();
 		env = Static.GenerateStandaloneEnvironment();
+		env = env.cloneAndAdd(new CommandHelperEnvironment());
 	}
 
 	@BeforeClass
@@ -79,7 +86,7 @@ public class DataHandlingTest {
 		//Create the test file
 		File test = new File("unit_test_inc.ms");
 		FileUtil.write("msg('hello')", test);
-		MethodScriptCompiler.execute(MethodScriptCompiler.compile(MethodScriptCompiler.lex(script, new File("./script.txt"), true), null), env, null, null);
+		MethodScriptCompiler.execute(MethodScriptCompiler.compile(MethodScriptCompiler.lex(script, null, new File("./script.txt"), true), null, envs), env, null, null, null);
 		verify(fakePlayer).sendMessage("hello");
 		//delete the test file
 		test.delete();
@@ -289,6 +296,26 @@ public class DataHandlingTest {
 		verify(fakePlayer2).sendMessage("newlabel");
 	}
 
+	@Test(timeout = 10000)
+	public void testClosure11() throws Exception {
+		SRun("@c = closure(@msg){msg(@msg)};\n"
+				+ "@c('Hello World');", fakePlayer);
+		verify(fakePlayer).sendMessage("Hello World");
+	}
+
+	@Test(timeout = 10000)
+	public void testClosure12() throws Exception {
+		SRun("@c = closure(@msg = 'Hello World'){msg(@msg)};\n"
+				+ "@c();", fakePlayer);
+		verify(fakePlayer).sendMessage("Hello World");
+	}
+
+	@Test(timeout = 10000, expected = CRECastException.class)
+	public void testClosure13() throws Exception {
+		SRun("@s = 'string';\n"
+				+ "@s();", fakePlayer);
+	}
+
 	@Test
 	public void testToRadix() throws Exception {
 		assertEquals("f", SRun("to_radix(15, 16)", null));
@@ -310,5 +337,30 @@ public class DataHandlingTest {
 	public void testEmptyClosureFunction() throws Exception {
 		// This should not throw an exception
 		SRun("closure()", null);
+	}
+
+	@Test
+	public void testAssignmentTypes1() throws Exception {
+		SRun("string @ivar = 'value'", null);
+	}
+
+	@Test
+	public void testAssignmentTypes2() throws Exception {
+		try {
+			SRun("array @ivar = 'value'", null);
+			fail("Excepted a CastException because string is not array");
+		} catch (CRECastException ex) {
+			// Test passed.
+		}
+	}
+
+	@Test
+	public void testAssignmentTypes3() throws Exception {
+		try {
+			SRun("void @ivar = 'value'", null);
+			fail("Expected a compile exception because IVariable cannot be assigned to void");
+		} catch (ConfigCompileException ex) {
+			// Test passed.
+		}
 	}
 }

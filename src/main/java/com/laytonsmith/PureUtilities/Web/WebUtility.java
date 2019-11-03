@@ -29,6 +29,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -251,6 +252,7 @@ public final class WebUtility {
 		HTTPMethod method = settings.getMethod();
 		Map<String, List<String>> headers = settings.getHeaders();
 		Map<String, List<String>> parameters = settings.getParameters();
+		Map<String, List<String>> queryParameters = settings.getQueryParameters();
 		CookieJar cookieStash = settings.getCookieJar();
 		boolean followRedirects = settings.getFollowRedirects();
 		final int timeout = settings.getTimeout();
@@ -272,15 +274,30 @@ public final class WebUtility {
 						followRedirects, timeout, username, password == null ? "null" : password.length()});
 		}
 		//First, let's check to see that the url is properly formatted. If there are parameters,
-		//and this is a GET request, we want to tack them on to the end.
-		if(parameters != null && !parameters.isEmpty() && method == HTTPMethod.GET) {
+		//and this is a GET request, we want to tack them on to the end. OR, if there is a raw parameter and parameters,
+		//and this is a post reqest, put the parameters on anyways.
+		if(parameters != null && !parameters.isEmpty()
+				&& (method == HTTPMethod.GET
+				|| (method != HTTPMethod.GET
+					&& settings.getRawParameter() != null && settings.getRawParameter().length != 0))) {
 			StringBuilder b = new StringBuilder(url.getQuery() == null ? "" : url.getQuery());
 			if(b.length() != 0) {
 				b.append("&");
 			}
-			b.append(encodeParameters(parameters));
+			b.append(encodeListParameters(parameters));
+			// Setting this to null avoids further processing below
+			parameters = null;
 			String query = b.toString();
 			url = new URL(url.getProtocol(), url.getHost(), url.getPort(), url.getPath() + "?" + query);
+		}
+
+		if(queryParameters != null && !queryParameters.isEmpty()) {
+			String query = url.getQuery();
+			if(query == null) {
+				query = "?";
+			}
+			query += encodeListParameters(queryParameters);
+			url = new URL(url.getProtocol(), url.getHost(), url.getPort(), url.getPath() + query);
 		}
 		if(logger != null) {
 			logger.log(Level.INFO, "Using url: {0}", url);
@@ -301,10 +318,10 @@ public final class WebUtility {
 				throw new IOException("Could not resolve the proxy address: " + addr.toString());
 			}
 		}
-		//FIXME: When given a bad proxy, this causes it to stall forever
 		if(logger != null) {
 			logger.log(Level.INFO, "Opening connection...");
 		}
+		//FIXME: When given a bad proxy, this causes it to stall forever
 		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/*proxy*/);
 		if(conn instanceof HttpsURLConnection
 				&& (settings.getDisableCertChecking() || settings.getUseDefaultTrustStore() == false
@@ -468,14 +485,21 @@ public final class WebUtility {
 			}
 		}
 		conn.setRequestMethod(method.name());
-		if((parameters != null && !parameters.isEmpty()) || settings.getRawParameter() != null) {
+		if((parameters != null && !parameters.isEmpty() && !method.equals(HTTPMethod.GET))
+				|| settings.getRawParameter() != null) {
+			if(logger != null) {
+				if(method.equals(HTTPMethod.GET)) {
+					logger.log(Level.WARNING, "Method was set to GET, but raw parameter data was provided, so method"
+							+ " is changing to POST.");
+				}
+			}
 			conn.setDoOutput(true);
 			byte[] params = ArrayUtils.EMPTY_BYTE_ARRAY;
 			if(parameters != null && !parameters.isEmpty()) {
 				if(logger != null) {
 					logger.log(Level.INFO, "Parameters are added, and content type set to application/x-www-form-urlencoded");
 				}
-				params = encodeParameters(parameters).getBytes("UTF-8");
+				params = encodeListParameters(parameters).getBytes("UTF-8");
 				conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 			} else if(settings.getRawParameter() != null) {
 				if(logger != null) {
@@ -557,7 +581,24 @@ public final class WebUtility {
 	 * @param parameters
 	 * @return
 	 */
-	public static String encodeParameters(Map<String, List<String>> parameters) {
+	public static String encodeParameters(Map<String, String> parameters) {
+		Map<String, List<String>> p = new HashMap<>();
+		for(Map.Entry<String, String> e : parameters.entrySet()) {
+			List<String> list = new ArrayList<>();
+			list.add(e.getValue());
+			p.put(e.getKey(), list);
+		}
+		return encodeListParameters(p);
+	}
+
+	/**
+	 * Returns a properly encoded string of parameters. Array types are returned using bracket notation,
+	 * for instance, if the input is {@code {a: [1, 2]}, then the output will be {@code a[]=1&a[]=2}.
+	 *
+	 * @param parameters
+	 * @return
+	 */
+	public static String encodeListParameters(Map<String, List<String>> parameters) {
 		if(parameters == null) {
 			return "";
 		}
@@ -639,13 +680,19 @@ public final class WebUtility {
 	}
 
 	/**
-	 * Given a query string "a=1&b=2", returns a map of that data
+	 * Given a query string "a=1&b=2", returns a map of that data. Note that this method does not properly
+	 * support array values, which are generally supported in the url format, so "a[]=1&a[]=2" and "a=1&a=2",
+	 * while technically
+	 * allowed in the specification, will not be returned correctly here, and the key will be a[]/a, and the value
+	 * will be either 1 or 2, which one is selected is undefined. If you are 100% certain the query string
+	 * will not contain array values, it is safe to use this method anyways, but if there is the possibility
+	 * of array values being present, use {@link #getQueryMapList} instead.
 	 *
 	 * @param query
 	 * @return
 	 */
 	public static Map<String, String> getQueryMap(String query) {
-		Map<String, String> map = new HashMap<String, String>();
+		Map<String, String> map = new HashMap<>();
 		if(query == null) {
 			return map;
 		}
@@ -654,6 +701,38 @@ public final class WebUtility {
 			String name = param.split("=")[0];
 			String value = param.split("=")[1];
 			map.put(name, value);
+		}
+		return map;
+	}
+
+	/**
+	 * Given a query string "a=1&b=2", returns a map of that data. Note that this method properly
+	 * supports array values, so "a[]=1&a[]=2" and "a=1&a=2", will both return a map like
+	 * {@code {a: [1, 2]}}. In any case, multidimensional arrays are not supported.
+	 *
+	 * @param query
+	 * @return
+	 */
+	public static Map<String, List<String>> getQueryMapList(String query) {
+		Map<String, List<String>> map = new HashMap<>();
+		if(query == null) {
+			return map;
+		}
+		String[] params = query.split("&");
+		for(String param : params) {
+			String name = param.split("=")[0];
+			String value = param.split("=")[1];
+			if(name.endsWith("[]")) {
+				name = name.substring(0, name.length() - 2);
+			}
+			List<String> values;
+			if(map.containsKey(name)) {
+				values = map.get(name);
+			} else {
+				values = new ArrayList<>();
+				map.put(name, values);
+			}
+			values.add(value);
 		}
 		return map;
 	}

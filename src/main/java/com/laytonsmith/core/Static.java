@@ -1,5 +1,6 @@
 package com.laytonsmith.core;
 
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
 import com.laytonsmith.PureUtilities.Common.DateUtils;
 import com.laytonsmith.PureUtilities.Common.StackTraceUtils;
 import com.laytonsmith.PureUtilities.Common.StreamUtils;
@@ -447,7 +448,7 @@ public final class Static {
 			if(!new File(debugLogFileCurrent).exists()) {
 				new File(debugLogFileCurrent).createNewFile();
 			}
-			debugLogFileHandle = new FileWriter(currentFileName);
+			debugLogFileHandle = new FileWriter(currentFileName, true);
 		}
 		return debugLogFileHandle;
 	}
@@ -768,7 +769,7 @@ public final class Static {
 			try {
 				ofp = getServer().getOfflinePlayer(GetUUID(search, t));
 			} catch (ConfigRuntimeException cre) {
-				if(cre instanceof CREThrowable && ((CREThrowable) cre).isInstanceOf(CRELengthException.class)) {
+				if(cre instanceof CREThrowable && ((CREThrowable) cre).isInstanceOf(CRELengthException.TYPE)) {
 					throw new CRELengthException("The given string was the wrong size to identify a player."
 							+ " A player name is expected to be between 1 and 16 characters. " + cre.getMessage(), t);
 				} else {
@@ -802,7 +803,7 @@ public final class Static {
 			try {
 				m = getServer().getPlayer(GetUUID(player, t));
 			} catch (ConfigRuntimeException cre) {
-				if(cre instanceof CREThrowable && ((CREThrowable) cre).isInstanceOf(CRELengthException.class)) {
+				if(cre instanceof CREThrowable && ((CREThrowable) cre).isInstanceOf(CRELengthException.TYPE)) {
 					throw new CRELengthException("The given string was the wrong size to identify a player."
 							+ " A player name is expected to be between 1 and 16 characters. " + cre.getMessage(), t);
 				} else {
@@ -902,7 +903,12 @@ public final class Static {
 		}
 		MCEntity ent = getServer().getEntity(id);
 		if(ent == null) {
-			throw new CREBadEntityException("That entity (UUID: " + id + ") does not exist.", t);
+			// Sometimes a bug may cause a player entity to be missing from entity lists in the server,
+			// so we'll double check the player list.
+			ent = getServer().getPlayer(id);
+			if(ent == null) {
+				throw new CREBadEntityException("That entity (UUID: " + id + ") does not exist.", t);
+			}
 		}
 		return ent;
 	}
@@ -988,7 +994,7 @@ public final class Static {
 	 * @return
 	 */
 	public static MCMetadatable getMetadatable(Mixed construct, Target t) {
-		if(construct.isInstanceOf(CArray.class)) {
+		if(construct.isInstanceOf(CArray.TYPE)) {
 			return ObjectGenerator.GetGenerator().location(construct, null, t).getBlock();
 		} else if(construct instanceof CString) {
 			switch(construct.val().length()) {
@@ -1187,6 +1193,10 @@ public final class Static {
 
 	}
 
+	public static MCCommandSender GetInjectedPlayer(String name) {
+		return INJECTED_PLAYERS.get(name);
+	}
+
 	public static void InjectPlayer(MCCommandSender player) {
 		String name = player.getName();
 		if("CONSOLE".equals(name)) {
@@ -1280,7 +1290,7 @@ public final class Static {
 				new Profiler(MethodScriptFileLocations.getDefault().getProfilerConfigFile()), persistenceNetwork, platformFolder,
 				profiles, new TaskManagerImpl());
 		gEnv.SetLabel(GLOBAL_PERMISSION);
-		return Environment.createEnvironment(gEnv, new CommandHelperEnvironment(), new CompilerEnvironment());
+		return Environment.createEnvironment(gEnv, new CompilerEnvironment());
 	}
 
 	public static Environment GenerateStandaloneEnvironment() throws IOException, DataSourceException, URISyntaxException, Profiles.InvalidProfileException {
@@ -1325,7 +1335,8 @@ public final class Static {
 	 * @param def The default file, which is returned if {@code arg} is null. (Maybe also be null).
 	 * @return
 	 */
-	public static File GetFileFromArgument(String arg, Environment env, Target t, File def) throws ConfigRuntimeException {
+	public static File GetFileFromArgument(String arg, Environment env, Target t, File def)
+			throws ConfigRuntimeException {
 		if(arg == null) {
 			return def;
 		}
@@ -1383,7 +1394,7 @@ public final class Static {
 	public static <T extends Mixed> T AssertType(Class<T> type, Mixed[] args, int argNumber, Function func, Target t) {
 		Mixed value = args[argNumber];
 		if(!type.isAssignableFrom(value.getClass())) {
-			typeof todesired = type.getAnnotation(typeof.class);
+			typeof todesired = ClassDiscovery.GetClassAnnotation(type, typeof.class);
 			CClassType toactual = value.typeof();
 			if(todesired != null) {
 				throw new CRECastException("Argument " + (argNumber + 1) + " of " + func.getName() + " was expected to be a "
@@ -1523,7 +1534,7 @@ public final class Static {
 			return ((CByteArray) construct).asByteArrayCopy();
 		} else if(construct instanceof CResource) {
 			return ((CResource) construct).getResource();
-		} else if(construct.isInstanceOf(CArray.class)) {
+		} else if(construct.isInstanceOf(CArray.TYPE)) {
 			CArray array = (CArray) construct;
 			if(array.isAssociative()) {
 				HashMap<String, Object> map = new HashMap<>();

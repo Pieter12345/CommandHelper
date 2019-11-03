@@ -2,6 +2,7 @@ package com.laytonsmith.core.functions;
 
 import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
 import com.laytonsmith.PureUtilities.Common.StreamUtils;
+import com.laytonsmith.annotations.DocumentLink;
 import com.laytonsmith.annotations.MEnum;
 import com.laytonsmith.annotations.core;
 import com.laytonsmith.annotations.hide;
@@ -29,8 +30,10 @@ import com.laytonsmith.tools.docgen.DocGenTemplates;
 import com.laytonsmith.tools.docgen.DocGenTemplates.Generator.GenerateException;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -99,12 +102,14 @@ public abstract class AbstractFunction implements Function {
 	 *
 	 * @param t
 	 * @param env
+	 * @param envs
 	 * @param children
 	 * @param fileOptions
 	 * @return
 	 * @throws com.laytonsmith.core.exceptions.ConfigCompileException
 	 */
-	public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+	public ParseTree optimizeDynamic(Target t, Environment env,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs, List<ParseTree> children, FileOptions fileOptions)
 			throws ConfigCompileException, ConfigRuntimeException {
 		return null;
 	}
@@ -151,14 +156,14 @@ public abstract class AbstractFunction implements Function {
 				b.append(", ");
 			}
 			first = false;
-			if(ccc.isInstanceOf(CArray.class)) {
+			if(ccc.isInstanceOf(CArray.TYPE)) {
 				//Arrays take too long to toString, so we don't want to actually toString them here if
 				//we don't need to.
 				b.append("<arrayNotShown size:").append(((CArray) ccc).size()).append(">");
-			} else if(ccc.isInstanceOf(CClosure.class)) {
+			} else if(ccc.isInstanceOf(CClosure.TYPE)) {
 				//The toString of a closure is too long, so let's not output them either.
 				b.append("<closureNotShown>");
-			} else if(ccc.isInstanceOf(CString.class)) {
+			} else if(ccc.isInstanceOf(CString.TYPE)) {
 				String val = ccc.val().replace("\\", "\\\\").replace("'", "\\'");
 				int max = 1000;
 				if(val.length() > max) {
@@ -285,6 +290,22 @@ public abstract class AbstractFunction implements Function {
 	@Override
 	public int compareTo(Function o) {
 		return this.getName().compareTo(o.getName());
+	}
+
+	public Set<ParseTree> getDocumentLinks(List<ParseTree> children) {
+		Set<ParseTree> files = new HashSet<>();
+		DocumentLink documentLink = this.getClass().getAnnotation(DocumentLink.class);
+		if(documentLink != null && this instanceof DocumentLinkProvider) {
+			for(int i : documentLink.value()) {
+				if(children.size() >= i) {
+					files.add(children.get(i));
+				}
+			}
+		} else {
+			throw new Error(this.getClass() + " is not tagged with the DocumentLink annotation, or does not"
+					+ " implement DocumentLinkProvider, and this method cannot be called on it.");
+		}
+		return files;
 	}
 
 }

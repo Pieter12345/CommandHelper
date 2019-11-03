@@ -1,9 +1,11 @@
 package com.laytonsmith.core;
 
 import com.laytonsmith.core.compiler.OptimizationUtilities;
+import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.exceptions.ConfigCompileException;
 import com.laytonsmith.testing.StaticTest;
 import java.io.File;
+import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -15,13 +17,15 @@ import org.junit.Test;
  */
 public class OptimizationTest {
 
+	static Set<Class<? extends Environment.EnvironmentImpl>> envs = Environment.getDefaultEnvClasses();
+
 	@BeforeClass
 	public static void setUpClass() {
 		StaticTest.InstallFakeServerFrontend();
 	}
 
 	public String optimize(String script) throws Exception {
-		return OptimizationUtilities.optimize(script, null);
+		return OptimizationUtilities.optimize(script, null, envs, null);
 	}
 
 	@Test
@@ -48,8 +52,8 @@ public class OptimizationTest {
 
 	@Test
 	public void testIfElseWithDie() throws Exception {
-		assertEquals("ifelse(is_null($pl),die(''),not(ponline(player($pl))),die(concat($pl,'')))",
-				optimize("if(is_null($pl)) {\ndie('') } else if(!ponline(player($pl))){ die($pl.'') }"));
+		assertEquals("ifelse(is_null($pl),die(''),not(dyn($pl)),die(concat($pl,'')))",
+				optimize("if(is_null($pl)) {\ndie('') } else if(!dyn($pl)){ die($pl.'') }"));
 	}
 
 	// Need to add this back too
@@ -97,6 +101,12 @@ public class OptimizationTest {
 	public void testProcReturn() throws Exception {
 		assertEquals("sconcat(proc('_proc',return(array(1))),array_get(_proc(),0))",
 				optimize("proc(_proc, return(array(1))) _proc()[0]"));
+	}
+
+	@Test
+	public void testClosure() throws Exception {
+		assertEquals("sconcat(assign(@c,closure(@target,msg(concat('Hello ',@target,'!')))),@c('world'))",
+				optimize("@c = closure(@target) {msg('Hello '.@target.'!')}; @c('world');"));
 	}
 
 	@Test
@@ -202,6 +212,42 @@ public class OptimizationTest {
 	}
 
 	@Test
+	public void testAssignWithOr() throws Exception {
+		assertEquals("assign(@one,or(@two,not(@three)))",
+				optimize("@one = @two || !@three"));
+	}
+
+	@Test
+	public void testAssignWithInc() throws Exception {
+		assertEquals("assign(@one,or(inc(@two),inc(@three)))",
+				optimize("@one = ++@two || ++@three"));
+	}
+
+	@Test
+	public void testAssignWithEquals() throws Exception {
+		assertEquals("assign(@one,and(@two,equals(postinc(@three),neg(@four))))",
+				optimize("@one = @two && @three++ == -@four"));
+	}
+
+	@Test
+	public void testAssignWithComplexSymbols() throws Exception {
+		assertEquals("assign(@one,or(postinc(@one),add(inc(@two),@three)))",
+				optimize("@one = @one++ || ++@two + @three"));
+	}
+
+	@Test
+	public void testMultipleAdjacentAssignment() throws Exception {
+		assertEquals("sconcat(assign(@one,inc(@two)),assign(ms.lang.int,@three,0),assign(@four,'test'))",
+				optimize("@one = ++@two; int @three = 0; @four = 'test';"));
+	}
+
+	@Test
+	public void testAdditiveAssignmentWithInc() throws Exception {
+		assertEquals("assign(@one,add(@one,subtract(inc(@two),inc(@three))))",
+				optimize("@one += ++@two - ++@three"));
+	}
+
+	@Test
 	public void testAssignmentMixedWithAddition1() throws Exception {
 		assertEquals("add(1,assign(@a,1))", optimize("1 + @a = 1"));
 	}
@@ -229,6 +275,12 @@ public class OptimizationTest {
 	@Test
 	public void testAssignmentMixedWithAddition6() throws Exception {
 		assertEquals("sconcat(add(1,assign(@_,assign(@a,add(@a,@b,@c,2)))),'blah')", optimize("1 + @_ = @a += @b + @c + 2 'blah'"));
+	}
+
+	@Test
+	public void testAssignmentMixedWithAddition7() throws Exception {
+		assertEquals("add(@one,assign(@one,inc(@two)),@three)",
+				optimize("@one + (@one = ++@two) + @three"));
 	}
 
 	@Test
@@ -404,10 +456,10 @@ public class OptimizationTest {
 		assertEquals("dand(dyn(''),dyn('a'),dyn('b'))", optimize("dyn('') &&& dyn('a') &&& dyn('b')"));
 	}
 
-	@Test
-	public void testDorOptimization() throws Exception {
-		assertEquals("'a'", optimize("dor(false, false, 'a')"));
-	}
+//	@Test
+//	public void testDorOptimization() throws Exception {
+//		assertEquals("'a'", optimize("dor(false, false, 'a')"));
+//	}
 
 	@Test
 	public void testDandOptimization() throws Exception {
@@ -416,6 +468,19 @@ public class OptimizationTest {
 
 	@Test
 	public void testCommentBlock() throws Exception {
-		assertEquals(2, MethodScriptCompiler.lex("/*/ still a comment -()*/", new File("OptimizationTest"), true, true).size());
+		assertEquals(2, MethodScriptCompiler.lex("/*/ still a comment -()*/", null, new File("OptimizationTest"), true, true).size());
+	}
+
+	@Test
+	public void testSwitchIc() throws Exception {
+		assertEquals("switch_ic(to_lower(dyn('AsDf')),array('asdf'),msg('hello'),array('fdsa'),msg('nope'))",
+				optimize("switch_ic(dyn('AsDf')) { case 'aSdF': msg('hello'); case 'fdsa': msg('nope'); }"));
+	}
+
+	@Test
+	public void testNotNot() throws Exception {
+		assertEquals("@value", optimize("!!@value"));
+		assertEquals("not(@value)", optimize("!@value"));
+		// !!!!@value (or more than 2 !!) is broken in the compiler -.-
 	}
 }

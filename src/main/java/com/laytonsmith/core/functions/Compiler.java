@@ -141,8 +141,9 @@ public class Compiler {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> list, FileOptions fileOptions) throws ConfigCompileException {
-			return optimizeSpecial(list, true);
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs, List<ParseTree> list, FileOptions fileOptions) throws ConfigCompileException {
+			return optimizeSpecial(list, true, envs);
 		}
 
 		private static final String ASSIGN = new DataHandling.assign().getName();
@@ -157,7 +158,8 @@ public class Compiler {
 		 * @param returnSConcat
 		 * @return
 		 */
-		public ParseTree optimizeSpecial(List<ParseTree> list, boolean returnSConcat) throws ConfigCompileException {
+		public ParseTree optimizeSpecial(List<ParseTree> list, boolean returnSConcat,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs) throws ConfigCompileException {
 			//If any of our nodes are CSymbols, we have different behavior
 			boolean inSymbolMode = false; //caching this can save Xn
 
@@ -170,78 +172,36 @@ public class Compiler {
 			for(int i = list.size() - 2; i >= 0; i--) {
 				ParseTree node = list.get(i + 1);
 				if(node.getData() instanceof CSymbol && ((CSymbol) node.getData()).isAssignment()) {
-					CSymbol sy = (CSymbol) node.getData();
-					String conversionFunction = sy.convertAssignment();
 					ParseTree lhs = list.get(i);
-					if(conversionFunction != null) {
-						ParseTree conversion = new ParseTree(new CFunction(conversionFunction, node.getTarget()), node.getFileOptions());
-						//grab the entire right side, and turn it into an operation with the left side.
-						//We have to take the entire right up to the next construct not followed by an
-						//operator (or the end)
-						try {
-							ParseTree rhs;
-							if(i < list.size() - 3) {
-								//Need to autoconcat
-								ParseTree ac = new ParseTree(new CFunction("__autoconcat__", node.getTarget()), lhs.getFileOptions());
-								int index = i + 2;
-								ac.addChild(list.get(index));
-								list.remove(index);
-								while(true) {
-									if(list.size() > index && list.get(index).getData() instanceof CSymbol) {
-										//Add the next two children, (the symbol then the item)
-										//and continue.
-										ac.addChild(list.get(index));
-										ac.addChild(list.get(index + 1));
-										list.remove(index);
-										list.remove(index);
-										continue;
-									} else {
-										break;
-									}
-								}
-								//Set this subset into the correct slot, the rest of the
-								//code will grab it correctly that way.
-								list.add(i + 2, ac);
-							}
-							rhs = list.get(i + 2);
-							conversion.addChild(lhs);
-							conversion.addChild(rhs);
-							list.set(i + 2, conversion);
-						} catch (IndexOutOfBoundsException e) {
-							throw new ConfigCompileException("Invalid symbol listed", node.getTarget());
-						}
-					}
-					//Simple assignment now
 					ParseTree assign = new ParseTree(new CFunction("assign", node.getTarget()), node.getFileOptions());
 					ParseTree rhs;
 					if(i < list.size() - 3) {
 						//Need to autoconcat
 						ParseTree ac = new ParseTree(new CFunction("__autoconcat__", node.getTarget()), lhs.getFileOptions());
 						int index = i + 2;
-						//As an incredibly special case, because (@value = !@value) is supported, and
-						//! hasn't been reduced yet, we want to check for that case, and if present, grab
-						//two symbols.
-						if(list.get(index).getData() instanceof CSymbol && list.get(index).getData().val().equals("!")) {
+						// add all preceding symbols
+						while(list.size() > index + 1 && list.get(index).getData() instanceof CSymbol) {
 							ac.addChild(list.get(index));
 							list.remove(index);
 						}
+						// add first item
 						ac.addChild(list.get(index));
 						list.remove(index);
-						while(true) {
-							if(list.size() > index && list.get(index).getData() instanceof CSymbol) {
-								//Add the next two children, (the symbol then the item)
-								//and continue.
+						// loop through all additional symbols/items
+						while(list.size() > index + 1 && list.get(index).getData() instanceof CSymbol) {
+							// add all contiguous symbols
+							do {
+								// symbols first
 								ac.addChild(list.get(index));
-								if(list.size() <= index + 1) {
-									throw new ConfigCompileException("Unexpected end of statement", list.get(index).getTarget());
-								}
-								ac.addChild(list.get(index + 1));
 								list.remove(index);
-								list.remove(index);
-								continue;
-							} else {
-								break;
+							} while(list.size() > index && list.get(index).getData() instanceof CSymbol);
+							if(list.size() <= index) {
+								throw new ConfigCompileException("Unexpected end of statement",
+										list.get(list.size() - 1).getTarget());
 							}
+							// then item
+							ac.addChild(list.get(index));
+							list.remove(index);
 						}
 						//Set this subset into the correct slot, the rest of the
 						//code will grab it correctly that way.
@@ -250,6 +210,17 @@ public class Compiler {
 					if(list.size() <= i + 2) {
 						throw new ConfigCompileException("Unexpected end of statement", list.get(i).getTarget());
 					}
+
+					// Additive assignment
+					CSymbol sy = (CSymbol) node.getData();
+					String conversionFunction = sy.convertAssignment();
+					if(conversionFunction != null) {
+						ParseTree conversion = new ParseTree(new CFunction(conversionFunction, node.getTarget()), node.getFileOptions());
+						conversion.addChild(lhs);
+						conversion.addChild(list.get(i + 2));
+						list.set(i + 2, conversion);
+					}
+
 					rhs = list.get(i + 2);
 					assign.addChild(lhs);
 					assign.addChild(rhs);
@@ -265,7 +236,7 @@ public class Compiler {
 					inSymbolMode = true;
 				}
 				if(node.getData() instanceof CSymbol && ((CSymbol) node.getData()).isPostfix()) {
-					if(i - 1 >= 0) { // && list.get(i - 1).getData() instanceof IVariable) {
+					if(i - 1 >= 0 && !(list.get(i - 1).getData() instanceof CSymbol)) {
 						CSymbol sy = (CSymbol) node.getData();
 						ParseTree conversion;
 						if(sy.val().equals("++")) {
@@ -320,7 +291,7 @@ public class Compiler {
 								list.remove(k);
 								break;
 							}
-							conversion.addChild(optimizeSpecial(ac, returnSConcat));
+							conversion.addChild(optimizeSpecial(ac, returnSConcat, envs));
 						}
 					}
 
@@ -462,7 +433,7 @@ public class Compiler {
 
 			// Look for typed assignments
 			for(int k = 0; k < list.size(); k++) {
-				if(list.get(k).getData().isInstanceOf(CClassType.class)) {
+				if(list.get(k).getData().equals(CVoid.VOID) || list.get(k).getData().isInstanceOf(CClassType.TYPE)) {
 					if(k == list.size() - 1) {
 						// This is not a typed assignment
 						break;
@@ -476,6 +447,11 @@ public class Compiler {
 							case "assign":
 							case "proc":
 								// Typed assign/closure
+								if(list.get(k + 1).getData().val().equals("assign")
+										&& list.get(k).getData().equals(CVoid.VOID)) {
+									throw new ConfigCompileException("Variables may not be of type void",
+											list.get(k).getTarget());
+								}
 								ParseTree type = list.remove(k);
 								List<ParseTree> children = list.get(k).getChildren();
 								children.add(0, type);
@@ -540,7 +516,7 @@ public class Compiler {
 								child.setChildren(list);
 							}
 							try {
-								Function f = (Function) FunctionList.getFunction(identifier);
+								Function f = (Function) FunctionList.getFunction(identifier, envs);
 								ParseTree node = new ParseTree(f.execs(identifier.getTarget(), null, null, child), child.getFileOptions());
 								return node;
 							} catch (Exception e) {
@@ -554,7 +530,7 @@ public class Compiler {
 					}
 				}
 				ParseTree tree;
-				FileOptions options = new FileOptions(new HashMap<String, String>());
+				FileOptions options = new FileOptions(new HashMap<>());
 				Target t = Target.UNKNOWN;
 				if(!list.isEmpty()) {
 					options = list.get(0).getFileOptions();
@@ -637,7 +613,10 @@ public class Compiler {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			ParseTree node;
 			if(children.isEmpty()) {
 				node = new ParseTree(CVoid.VOID, fileOptions);
@@ -668,7 +647,10 @@ public class Compiler {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			throw new ConfigCompileException("Unexpected use of braces", t);
 		}
 	}
@@ -725,11 +707,14 @@ public class Compiler {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() != 1) {
 				throw new ConfigCompileException(getName() + " can only take one parameter", t);
 			}
-			if(!(children.get(0).getData().isInstanceOf(CString.class))) {
+			if(!(children.get(0).getData().isInstanceOf(CString.TYPE))) {
 				throw new ConfigCompileException("Only hardcoded strings may be passed into " + getName(), t);
 			}
 			String value = children.get(0).getData().val();

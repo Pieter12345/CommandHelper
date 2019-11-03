@@ -6,6 +6,7 @@ import com.laytonsmith.PureUtilities.RunnableQueue;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.abstraction.StaticLayer;
 import com.laytonsmith.annotations.MEnum;
+import com.laytonsmith.annotations.OperatorPreferred;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.annotations.core;
 import com.laytonsmith.annotations.seealso;
@@ -34,6 +35,7 @@ import com.laytonsmith.core.exceptions.CRE.CREFormatException;
 import com.laytonsmith.core.exceptions.CRE.CREIllegalArgumentException;
 import com.laytonsmith.core.exceptions.CRE.CREIndexOverflowException;
 import com.laytonsmith.core.exceptions.CRE.CREInsufficientArgumentsException;
+import com.laytonsmith.core.exceptions.CRE.CRELengthException;
 import com.laytonsmith.core.exceptions.CRE.CREPluginInternalException;
 import com.laytonsmith.core.exceptions.CRE.CRERangeException;
 import com.laytonsmith.core.exceptions.CRE.CREThrowable;
@@ -80,7 +82,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class) && !(args[0] instanceof CMutablePrimitive)) {
+			if(args[0].isInstanceOf(CArray.TYPE) && !(args[0] instanceof CMutablePrimitive)) {
 				return new CInt(((CArray) args[0]).size(), t);
 			}
 			throw new CRECastException("Argument 1 of array_size must be an array", t);
@@ -151,7 +153,7 @@ public class ArrayHandling {
 				defaultConstruct = args[2];
 			}
 
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				CArray ca = (CArray) args[0];
 				if(index instanceof CSlice) {
 
@@ -193,7 +195,7 @@ public class ArrayHandling {
 					try {
 						if(!ca.inAssociativeMode()) {
 							if(index instanceof CNull) {
-								throw new CRECastException("Expected a number, but recieved null instead", t);
+								throw new CRECastException("Expected a number, but received null instead", t);
 							}
 							long iindex = Static.getInt(index, t);
 							if(iindex < 0) {
@@ -206,7 +208,7 @@ public class ArrayHandling {
 						}
 					} catch (ConfigRuntimeException e) {
 						if(e instanceof CREThrowable
-								&& ((CREThrowable) e).isInstanceOf(CREIndexOverflowException.class)) {
+								&& ((CREThrowable) e).isInstanceOf(CREIndexOverflowException.TYPE)) {
 							if(defaultConstruct != null) {
 								return defaultConstruct;
 							}
@@ -225,7 +227,7 @@ public class ArrayHandling {
 						throw e;
 					}
 				}
-			} else if(args[0].isInstanceOf(ArrayAccess.class)) {
+			} else if(args[0].isInstanceOf(ArrayAccess.TYPE)) {
 				com.laytonsmith.core.natives.interfaces.Iterable aa
 						= (com.laytonsmith.core.natives.interfaces.Iterable) args[0];
 				if(index instanceof CSlice) {
@@ -244,7 +246,7 @@ public class ArrayHandling {
 					} catch (NumberFormatException e) {
 						throw new CRECastException("Ranges must be integer numbers, i.e., [0..5]", t);
 					}
-				} else if(index.isInstanceOf(CInt.class)) {
+				} else if(index.isInstanceOf(CInt.TYPE)) {
 					return aa.get(Static.getInt32(index, t), t);
 				} else {
 					return aa.get(index, t);
@@ -292,10 +294,10 @@ public class ArrayHandling {
 			if(args.length == 0) {
 				throw new CRECastException("Argument 1 of array_get must be an array", t);
 			}
-			if(args[0].isInstanceOf(ArrayAccess.class)) {
+			if(args[0].isInstanceOf(ArrayAccess.TYPE)) {
 				ArrayAccess aa = (ArrayAccess) args[0];
 				if(!aa.canBeAssociative()) {
-					if(!(args[1].isInstanceOf(CInt.class)) && !(args[1] instanceof CSlice)) {
+					if(!(args[1].isInstanceOf(CInt.TYPE)) && !(args[1] instanceof CSlice)) {
 						throw new ConfigCompileException("Accessing an element as an associative array,"
 								+ " when it can only accept integers.", t);
 					}
@@ -329,6 +331,7 @@ public class ArrayHandling {
 
 	@api
 	@seealso({array_get.class, array.class, array_push.class, com.laytonsmith.tools.docgen.templates.Arrays.class})
+	@OperatorPreferred("@array[@key] = @value")
 	public static class array_set extends AbstractFunction {
 
 		@Override
@@ -353,7 +356,7 @@ public class ArrayHandling {
 			env.getEnv(GlobalEnv.class).ClearFlag("array-special-get");
 			Mixed index = parent.seval(nodes[1], env);
 			Mixed value = parent.seval(nodes[2], env);
-			if(!(array.isInstanceOf(CArray.class))) {
+			if(!(array.isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Argument 1 of array_set must be an array", t);
 			}
 			try {
@@ -366,7 +369,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				try {
 					((CArray) args[0]).set(args[1], args[2], t);
 				} catch (IndexOutOfBoundsException e) {
@@ -421,6 +424,7 @@ public class ArrayHandling {
 
 	@api
 	@seealso({array_set.class, array_push_all.class})
+	@OperatorPreferred("@array[] = @value")
 	public static class array_push extends AbstractFunction {
 
 		@Override
@@ -438,7 +442,7 @@ public class ArrayHandling {
 			if(args.length < 2) {
 				throw new CREInsufficientArgumentsException("At least 2 arguments must be provided to array_push", t);
 			}
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				CArray array = (CArray) args[0];
 				int initialSize = (int) array.size();
 				for(int i = 1; i < args.length; i++) {
@@ -604,7 +608,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws CancelCommandException, ConfigRuntimeException {
-			if(!(args[0].isInstanceOf(CArray.class))) {
+			if(!(args[0].isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Argument 1 of " + this.getName() + " must be an array", t);
 			}
 			CArray ca = (CArray) args[0];
@@ -701,7 +705,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				CArray ca = (CArray) args[0];
 				for(int i = 0; i < ca.size(); i++) {
 					if(new equals_ic().exec(t, environment, ca.get(i, t), args[1]).getBoolean()) {
@@ -744,7 +748,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws CancelCommandException, ConfigRuntimeException {
-			if(!(args[0].isInstanceOf(CArray.class))) {
+			if(!(args[0].isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Argument 1 of " + this.getName() + " must be an array", t);
 			}
 			CArray ca = (CArray) args[0];
@@ -848,17 +852,17 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				Mixed m = args[0];
 				for(int i = 1; i < args.length; i++) {
-					if(!(m.isInstanceOf(CArray.class))) {
+					if(!(m.isInstanceOf(CArray.TYPE))) {
 						return CBoolean.FALSE;
 					}
 					CArray ca = (CArray) m;
 					if(!ca.inAssociativeMode()) {
 						try {
 							int index = Static.getInt32(args[i], t);
-							if(index >= ca.size()) {
+							if(index >= ca.size() || index < 0) {
 								return CBoolean.FALSE;
 							}
 						} catch (ConfigRuntimeException e) {
@@ -879,7 +883,9 @@ public class ArrayHandling {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs, List<ParseTree> children,
+				FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 2) {
 				throw new ConfigCompileException(getName() + " must have 2 or more arguments", t);
 			}
@@ -953,7 +959,7 @@ public class ArrayHandling {
 
 		@Override
 		public CArray exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class) && args[1].isInstanceOf(CInt.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE) && args[1].isInstanceOf(CInt.TYPE)) {
 				CArray original = (CArray) args[0];
 				int size = (int) ((CInt) args[1]).getInt();
 				Mixed fill = CNull.NULL;
@@ -1110,7 +1116,7 @@ public class ArrayHandling {
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
 			// As an exception, strings aren't supported here. There's no reason to do this for a string that isn't accidental.
-			if(args[0].isInstanceOf(ArrayAccess.class) && !(args[0].isInstanceOf(CString.class))) {
+			if(args[0].isInstanceOf(ArrayAccess.TYPE) && !(args[0].isInstanceOf(CString.TYPE))) {
 				ArrayAccess ca = (ArrayAccess) args[0];
 				CArray ca2 = new CArray(t);
 				for(Mixed c : ca.keySet()) {
@@ -1176,7 +1182,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				CArray ca = Static.getArray(args[0], t);
 				CArray ca2 = new CArray(t);
 				for(Mixed c : ca.keySet()) {
@@ -1249,7 +1255,7 @@ public class ArrayHandling {
 				throw new CREInsufficientArgumentsException("array_merge must be called with at least two parameters", t);
 			}
 			for(Mixed arg : args) {
-				if(arg.isInstanceOf(ArrayAccess.class)) {
+				if(arg.isInstanceOf(ArrayAccess.TYPE)) {
 					com.laytonsmith.core.natives.interfaces.Iterable cur
 							= (com.laytonsmith.core.natives.interfaces.Iterable) arg;
 					if(!cur.isAssociative()) {
@@ -1258,7 +1264,7 @@ public class ArrayHandling {
 						}
 					} else {
 						for(Mixed key : cur.keySet()) {
-							if(key.isInstanceOf(CInt.class)) {
+							if(key.isInstanceOf(CInt.TYPE)) {
 								newArray.set(key, cur.get((int) ((CInt) key).getInt(), t), t);
 							} else {
 								newArray.set(key, cur.get(key.val(), t), t);
@@ -1357,7 +1363,7 @@ public class ArrayHandling {
 	}
 
 	@api
-	@seealso({StringHandling.split.class, Regex.reg_split.class})
+	@seealso({StringHandling.split.class, Regex.reg_split.class, map_implode.class})
 	public static class array_implode extends AbstractFunction {
 
 		@Override
@@ -1394,7 +1400,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(!(args[0].isInstanceOf(ArrayAccess.class))) {
+			if(!(args[0].isInstanceOf(ArrayAccess.TYPE))) {
 				throw new CRECastException("Expecting argument 1 to be an ArrayAccess type object", t);
 			}
 			StringBuilder b = new StringBuilder();
@@ -1405,7 +1411,7 @@ public class ArrayHandling {
 			}
 			boolean first = true;
 			for(Mixed key : ca.keySet()) {
-				Mixed value = ca.get(key.val(), t);
+				Mixed value = ca.get(key, t);
 				if(!first) {
 					b.append(glue).append(value.val());
 				} else {
@@ -1427,6 +1433,84 @@ public class ArrayHandling {
 				new ExampleScript("Basic usage", "array_implode(array(1, 2, 3), '-')"),
 				new ExampleScript("With associative array", "array_implode(array(one: 'a', two: 'b', three: 'c'), '-')")};
 		}
+	}
+
+	@api
+	@seealso({array_implode.class})
+	public static class map_implode extends AbstractFunction {
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{CRECastException.class};
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return false;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return null;
+		}
+
+		@Override
+		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
+			CArray array = ArgumentValidation.getArray(args[0], t);
+			String innerGlue = ArgumentValidation.getString(args[1], t);
+			String outerGlue = ArgumentValidation.getString(args[2], t);
+			if(!array.isAssociative()) {
+				throw new CRECastException("Expecting an associative array, but a normal array was provided.", t);
+			}
+
+			StringBuilder b = new StringBuilder();
+
+			boolean first = true;
+			for(Mixed key : array.keySet()) {
+				Mixed value = array.get(key, t);
+				if(!first) {
+					b.append(outerGlue);
+				}
+				first = false;
+				b.append(key.val()).append(innerGlue).append(value.val());
+			}
+
+			return new CString(b.toString(), t);
+		}
+
+		@Override
+		public String getName() {
+			return "map_implode";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{3};
+		}
+
+		@Override
+		public String docs() {
+			return "string {associativeArray, innerGlue, outerGlue} Implodes an associative array. The innerGlue is"
+					+ " used to glue the key to the value, and then the outerGlue is used to glue those elements"
+					+ " together. This only works with associative arrays, and will throw CastException if the array"
+					+ " passed in isa  normal array.";
+		}
+
+		@Override
+		public Version since() {
+			return MSVersion.V3_3_4;
+		}
+
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[]{
+				new ExampleScript("Single element", "map_implode(array('a': 'b'), '=', '&')"),
+				new ExampleScript("Multiple elements", "map_implode(array('a': '1', 'b': '2'), '=', '&')"),
+			};
+		}
+
+
+
 	}
 
 	@api
@@ -1508,7 +1592,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(!(args[0].isInstanceOf(CArray.class))) {
+			if(!(args[0].isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("The first parameter to array_sort must be an array", t);
 			}
 			CArray ca = (CArray) args[0];
@@ -1519,7 +1603,7 @@ public class ArrayHandling {
 			}
 			try {
 				if(args.length == 2) {
-					if(args[1].isInstanceOf(CClosure.class)) {
+					if(args[1].isInstanceOf(CClosure.TYPE)) {
 						sortType = null;
 						customSort = (CClosure) args[1];
 					} else {
@@ -1578,7 +1662,7 @@ public class ArrayHandling {
 					int value;
 					if(c instanceof CNull) {
 						value = 0;
-					} else if(c.isInstanceOf(CBoolean.class)) {
+					} else if(c.isInstanceOf(CBoolean.TYPE)) {
 						if(((CBoolean) c).getBoolean()) {
 							value = 1;
 						} else {
@@ -1657,7 +1741,9 @@ public class ArrayHandling {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs, List<ParseTree> children,
+				FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() == 2) {
 				if(!Construct.IsDynamicHelper(children.get(1).getData())) {
 					try {
@@ -1869,7 +1955,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(!(args[0].isInstanceOf(CArray.class))) {
+			if(!(args[0].isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Expected parameter 1 to be an array, but was " + args[0].val(), t);
 			}
 			return ((CArray) args[0]).indexesOf(args[1]);
@@ -2050,7 +2136,7 @@ public class ArrayHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				((CArray) args[0]).reverse(t);
 			}
 			return CVoid.VOID;
@@ -2122,8 +2208,8 @@ public class ArrayHandling {
 			if(number < 1) {
 				throw new CRERangeException("number may not be less than 1.", t);
 			}
-			if(number > Integer.MAX_VALUE) {
-				throw new CRERangeException("Overflow detected. Number cannot be larger than " + Integer.MAX_VALUE, t);
+			if(number > array.size()) {
+				throw new CRERangeException("Number cannot be larger than array size", t);
 			}
 			if(args.length > 2) {
 				getKeys = ArgumentValidation.getBoolean(args[2], t);
@@ -2306,7 +2392,7 @@ public class ArrayHandling {
 			if(!(args[0] instanceof com.laytonsmith.core.natives.interfaces.Iterable)) {
 				throw new CRECastException("Expecting an array for argument 1", t);
 			}
-			if(!(args[1].isInstanceOf(CClosure.class))) {
+			if(!(args[1].isInstanceOf(CClosure.TYPE))) {
 				throw new CRECastException("Expecting a closure for argument 2", t);
 			}
 			array = (com.laytonsmith.core.natives.interfaces.Iterable) args[0];
@@ -2407,7 +2493,7 @@ public class ArrayHandling {
 			if(args.length != 1) {
 				throw new CREInsufficientArgumentsException("Expecting exactly one argument", t);
 			}
-			if(!(args[0].isInstanceOf(CArray.class))) {
+			if(!(args[0].isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Expecting argument 1 to be an array", t);
 			}
 			return ((CArray) args[0]).deepClone(t);
@@ -2475,7 +2561,7 @@ public class ArrayHandling {
 			if(args.length != 1) {
 				throw new CREInsufficientArgumentsException("Expecting exactly one argument", t);
 			}
-			if(!(args[0].isInstanceOf(CArray.class))) {
+			if(!(args[0].isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Expecting argument 1 to be an array", t);
 			}
 			CArray array = (CArray) args[0];
@@ -2940,7 +3026,7 @@ public class ArrayHandling {
 
 			for(Mixed c : array.keySet()) {
 				Mixed fr = closure.executeCallable(environment, t, array.get(c, t));
-				if(fr.isInstanceOf(CVoid.class)) {
+				if(fr.isInstanceOf(CVoid.TYPE)) {
 					throw new CREIllegalArgumentException("The closure passed to " + getName()
 							+ " must return a value.", t);
 				}
@@ -3039,7 +3125,7 @@ public class ArrayHandling {
 					throw new CREIllegalArgumentException("For associative arrays, only 2 parameters may be provided,"
 							+ " the comparison mode value is not used.", t);
 				}
-				if(args[2].isInstanceOf(CClosure.class)) {
+				if(args[2].isInstanceOf(CClosure.TYPE)) {
 					closure = Static.getObject(args[2], t, CClosure.class);
 				} else {
 					mode = ArgumentValidation.getEnum(args[2], ArrayIntersectComparisonMode.class, t);
@@ -3143,13 +3229,13 @@ public class ArrayHandling {
 				new ExampleScript("Usage with normal arrays. The default comparison method is HASH",
 						"array_intersect(array(1, 2, 3), array(2, 3, 4))"),
 				new ExampleScript("Demonstrates that STRICT_EQUALS does not consider different types to be equal",
-						"array_intersect(array('1', '2', '3'), array(1, 2, 3), STRICT_EQUALS)"),
+						"array_intersect(array('1', '2', '3'), array(1, 2, 3), 'STRICT_EQUALS')"),
 				new ExampleScript("Note that the results of this method are the same as the previous example,"
 						+ " but this version would be faster, and is preferred in all but the most exceptional cases.",
-						"array_intersect(array('1', '2', '3'), array(1, 2, 3), HASH)"),
+						"array_intersect(array('1', '2', '3'), array(1, 2, 3), 'HASH')"),
 				new ExampleScript("Demonstrates usage with equals. Note that '1' == 1 (but does not === 1) but since"
 						+ " the comparison method uses equals, not sequals, these arrays are considered equivalent.",
-						"array_intersect(array('1', '2', '3'), array(1, 2, 3), EQUALS)"),
+						"array_intersect(array('1', '2', '3'), array(1, 2, 3), 'EQUALS')"),
 				new ExampleScript("Usage with a custom closure", "array_intersect(\n"
 						+ "\tarray(array(id: 1, qty: 2), array(id: 2, qty: 5)),\n"
 						+ "\tarray(array(id: 1, qty: 2), array(id: 5, qty: 10)),\n"
@@ -3218,10 +3304,10 @@ public class ArrayHandling {
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			Mixed constA = args[0];
 			Mixed constB = args[1];
-			if(!(constA.isInstanceOf(CArray.class))) {
+			if(!(constA.isInstanceOf(CArray.TYPE))) {
 				throw new CREIllegalArgumentException("Expecting an array, but received " + constA, t);
 			}
-			if(!(constB.isInstanceOf(CArray.class))) {
+			if(!(constB.isInstanceOf(CArray.TYPE))) {
 				throw new CREIllegalArgumentException("Expecting an array, but received " + constB, t);
 			}
 			return CBoolean.get(subsetOf(constA, constB, t));
@@ -3239,12 +3325,12 @@ public class ArrayHandling {
 				+ "@arrayB = array(0, 2, 5, 9)\n"
 				+ "array_subset_of(@arrayA, @arrayB)"),
 				new ExampleScript("Mix array",
-				"@arrayA = array(a: 1, b: array(one, two))\n"
-				+ "@arrayB = array(a: 1, b: array(one, two, three), c: 3)\n"
+				"@arrayA = array(a: 1, b: array('one', 'two'))\n"
+				+ "@arrayB = array(a: 1, b: array('one', 'two', 'three'), c: 3)\n"
 				+ "array_subset_of(@arrayA, @arrayB)"),
 				new ExampleScript("Mix array",
-				"@arrayA = array(a: 1, b: array(one, two))\n"
-				+ "@arrayB = array(a: 1, b: array(two, one, three), c: 3)\n"
+				"@arrayA = array(a: 1, b: array('one', 'two'))\n"
+				+ "@arrayB = array(a: 1, b: array('two', 'one', 'three'), c: 3)\n"
 				+ "array_subset_of(@arrayA, @arrayB)")
 			};
 		}
@@ -3253,7 +3339,7 @@ public class ArrayHandling {
 			if(!constA.typeof().equals(constB.typeof())) {
 				return false;
 			}
-			if(constA.isInstanceOf(CArray.class)) {
+			if(constA.isInstanceOf(CArray.TYPE)) {
 				CArray arrA = (CArray) constA;
 				CArray arrB = (CArray) constB;
 				if(arrA.isAssociative() != arrB.isAssociative()) {
@@ -3335,5 +3421,68 @@ public class ArrayHandling {
 			return getBundledCode();
 		}
 
+	}
+
+	@api
+	@seealso(array_rand.class)
+	public static class array_get_rand extends AbstractFunction {
+
+		@Override
+		public String getName() {
+			return "array_get_rand";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{1};
+		}
+
+		@Override
+		public String docs() {
+			return "mixed {array} Returns a random value from an array."
+					+ " If the array is empty a LengthException is thrown.";
+		}
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{CRECastException.class, CRELengthException.class};
+		}
+
+		Random rand = new Random();
+
+		@Override
+		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
+			CArray array = Static.getArray(args[0], t);
+			if(array.isEmpty()) {
+				throw new CRELengthException("Array is empty", t);
+			}
+			List<Mixed> keySet = new ArrayList<>(array.keySet());
+			return array.get(keySet.get(java.lang.Math.abs(rand.nextInt() % (int) array.size())), t);
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return false;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return null;
+		}
+
+		@Override
+		public Version since() {
+			return MSVersion.V3_3_4;
+		}
+
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[]{
+					new ExampleScript("Normal array usage",
+							"array_get_rand(array(1, 2, 3, 4, 5))"),
+					new ExampleScript("Associative array usage",
+							"array_get_rand(array(one: 1, two: 2, three: 3, four: 4, five: 5))"),
+			};
+		}
 	}
 }

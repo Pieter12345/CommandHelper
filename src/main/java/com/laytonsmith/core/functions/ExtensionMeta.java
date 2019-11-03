@@ -59,7 +59,7 @@ public class ExtensionMeta {
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			try {
-				FunctionList.getFunction(args[0].val().toLowerCase(), t);
+				FunctionList.getFunction(args[0].val().toLowerCase(), environment.getEnvClasses(), t);
 			} catch (ConfigCompileException ex) {
 				return CBoolean.FALSE;
 			}
@@ -104,16 +104,27 @@ public class ExtensionMeta {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() != 1) {
 				throw new ConfigCompileException(getName() + " can only accept one argument", t);
 			}
 
-			if(!(children.get(0).getData().isInstanceOf(CString.class))) {
+			if(!(children.get(0).getData().isInstanceOf(CString.TYPE))) {
 				throw new ConfigCompileException(getName() + " can only accept hardcoded string values", t);
 			}
 
-			return new ParseTree(this.exec(t, null, children.get(0).getData()), children.get(0).getFileOptions());
+			CBoolean val;
+			try {
+				FunctionList.getFunction(children.get(0).getData().val(), envs, t);
+				val = CBoolean.TRUE;
+			} catch (ConfigCompileException ex) {
+				val = CBoolean.FALSE;
+			}
+
+			return new ParseTree(val, children.get(0).getFileOptions());
 		}
 
 		@Override
@@ -181,12 +192,15 @@ public class ExtensionMeta {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() != 1) {
 				throw new ConfigCompileException(getName() + " can only accept one argument", t);
 			}
 
-			if(!(children.get(0).getData().isInstanceOf(CString.class))) {
+			if(!(children.get(0).getData().isInstanceOf(CString.TYPE))) {
 				throw new ConfigCompileException(getName() + " can only accept hardcoded string values", t);
 			}
 
@@ -253,10 +267,13 @@ public class ExtensionMeta {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() != 1) {
 				throw new ConfigCompileException(getName() + " can only accept one argument", t);
-			} else if(!(children.get(0).getData().isInstanceOf(CString.class))) {
+			} else if(!(children.get(0).getData().isInstanceOf(CString.TYPE))) {
 				throw new ConfigCompileException(getName() + " can only accept hardcoded string values", t);
 			} else {
 				return new ParseTree(this.exec(t, null, children.get(0).getData()), children.get(0).getFileOptions());

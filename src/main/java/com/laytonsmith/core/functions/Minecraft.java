@@ -99,7 +99,7 @@ public class Minecraft {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws CancelCommandException, ConfigRuntimeException {
-			if(args[0].isInstanceOf(CInt.class)) {
+			if(args[0].isInstanceOf(CInt.TYPE)) {
 				return new CInt(Static.getInt(args[0], t), t);
 			}
 			String c = args[0].val();
@@ -155,7 +155,10 @@ public class Minecraft {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "data_values() is deprecated.", t);
 			return null;
 		}
@@ -211,7 +214,7 @@ public class Minecraft {
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			int i = -1;
 			int i2 = -1;
-			if(args[0].isInstanceOf(CString.class)) {
+			if(args[0].isInstanceOf(CString.TYPE)) {
 				//We also accept item notation
 				if(args[0].val().contains(":")) {
 					String[] split = args[0].val().split(":");
@@ -223,7 +226,7 @@ public class Minecraft {
 						throw new CREFormatException("Incorrect format for the item notation: " + args[0].val(), t);
 					}
 				}
-			} else if(args[0].isInstanceOf(CArray.class)) {
+			} else if(args[0].isInstanceOf(CArray.TYPE)) {
 				MCItemStack is = ObjectGenerator.GetGenerator().item(args[0], t, true);
 				return new CString(is.getType().getName(), t);
 			}
@@ -342,7 +345,7 @@ public class Minecraft {
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			Mixed id = args[0];
-			if(id.isInstanceOf(CArray.class)) {
+			if(id.isInstanceOf(CArray.TYPE)) {
 				MCItemStack is = ObjectGenerator.GetGenerator().item(id, t);
 				return new CInt(is.getType().getMaxStackSize(), t);
 			}
@@ -373,11 +376,14 @@ public class Minecraft {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 1) {
 				return null;
 			}
-			if(children.get(0).getData().isInstanceOf(CString.class) && children.get(0).getData().val().contains(":")
+			if(children.get(0).getData().isInstanceOf(CString.TYPE) && children.get(0).getData().val().contains(":")
 					|| ArgumentValidation.isNumber(children.get(0).getData())) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "Numeric ids are deprecated in max_stack_size()", t);
 			}
@@ -470,14 +476,16 @@ public class Minecraft {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 
 			if(children.size() < 2) {
 				return null;
 			}
 			Mixed effect = children.get(1).getData();
-			if(effect.isInstanceOf(CString.class)) {
+			if(effect.isInstanceOf(CString.TYPE)) {
 				String effectName = effect.val().split(":")[0].toUpperCase();
 				try {
 					MCEffect.valueOf(effectName);
@@ -1176,7 +1184,10 @@ public class Minecraft {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 1) {
 				return null;
 			}
@@ -1306,5 +1317,54 @@ public class Minecraft {
 			return MSVersion.V3_3_1;
 		}
 
+	}
+
+	@api
+	public static class all_materials extends AbstractFunction {
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{};
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return false;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return Boolean.FALSE;
+		}
+
+		@Override
+		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
+			CArray mats = new CArray(t);
+			for(MCMaterial mat : StaticLayer.GetMaterialValues()) {
+				if(!mat.isLegacy()) {
+					mats.push(new CString(mat.getName(), t), t);
+				}
+			}
+			return mats;
+		}
+
+		@Override
+		public Version since() {
+			return MSVersion.V3_3_4;
+		}
+
+		@Override
+		public String getName() {
+			return "all_materials";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{0};
+		}
+
+		@Override
+		public String docs() {
+			return "array {} Returns an array of all material names.";
+		}
 	}
 }

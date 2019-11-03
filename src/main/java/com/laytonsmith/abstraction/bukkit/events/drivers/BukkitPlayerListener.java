@@ -5,7 +5,8 @@ import com.laytonsmith.abstraction.bukkit.BukkitMCLocation;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCExpChangeEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCFoodLevelChangeEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCGamemodeChangeEvent;
-import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerBedEvent;
+import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerEnterBedEvent;
+import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerLeaveBedEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerChatEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerEditBookEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerFishEvent;
@@ -18,6 +19,7 @@ import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlay
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerPortalEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerQuitEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerRespawnEvent;
+import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerResourcePackEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerTeleportEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerToggleFlightEvent;
 import com.laytonsmith.abstraction.bukkit.events.BukkitPlayerEvents.BukkitMCPlayerToggleSneakEvent;
@@ -50,6 +52,7 @@ import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerResourcePackStatusEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
@@ -79,14 +82,14 @@ public class BukkitPlayerListener implements Listener {
 
 	@EventHandler(priority = EventPriority.LOWEST)
 	public void onPlayerBedEnter(PlayerBedEnterEvent e) {
-		BukkitMCPlayerBedEvent be = new BukkitMCPlayerBedEvent(e);
-		EventUtils.TriggerListener(Driver.PLAYER_BED_EVENT, "player_enter_bed", be);
+		BukkitMCPlayerEnterBedEvent be = new BukkitMCPlayerEnterBedEvent(e);
+		EventUtils.TriggerListener(Driver.PLAYER_ENTER_BED, "player_enter_bed", be);
 	}
 
 	@EventHandler(priority = EventPriority.LOWEST)
 	public void onPlayerBedLeave(PlayerBedLeaveEvent e) {
-		BukkitMCPlayerBedEvent be = new BukkitMCPlayerBedEvent(e);
-		EventUtils.TriggerListener(Driver.PLAYER_BED_EVENT, "player_leave_bed", be);
+		BukkitMCPlayerLeaveBedEvent be = new BukkitMCPlayerLeaveBedEvent(e);
+		EventUtils.TriggerListener(Driver.PLAYER_LEAVE_BED, "player_leave_bed", be);
 	}
 
 	@EventHandler(priority = EventPriority.LOWEST)
@@ -302,10 +305,16 @@ public class BukkitPlayerListener implements Listener {
 	}
 
 	@EventHandler(priority = EventPriority.LOWEST)
+	public void onPlayerResourcePackStatus(PlayerResourcePackStatusEvent event) {
+		BukkitMCPlayerResourcePackEvent prpse = new BukkitMCPlayerResourcePackEvent(event);
+		EventUtils.TriggerListener(Driver.RESOURCE_PACK_STATUS, "resource_pack_status", prpse);
+	}
+
+	@EventHandler(priority = EventPriority.LOWEST)
 	public void onPlayerMove(PlayerMoveEvent event) {
 		Location from = event.getFrom();
 		Location to = event.getTo();
-		if(from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()) {
+		if(to == null || from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()) {
 			return;
 		}
 		String p = event.getPlayer().getName();

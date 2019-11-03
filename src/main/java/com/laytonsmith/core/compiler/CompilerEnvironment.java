@@ -1,5 +1,7 @@
 package com.laytonsmith.core.compiler;
 
+import com.laytonsmith.core.LogLevel;
+import com.laytonsmith.core.MSLog;
 import com.laytonsmith.core.ParseTree;
 import com.laytonsmith.core.constructs.CString;
 import com.laytonsmith.core.constructs.Construct;
@@ -49,6 +51,10 @@ public class CompilerEnvironment implements Environment.EnvironmentImpl {
 	 * a potentially partially defined class.
 	 */
 	private final ObjectDefinitionTable objectDefinitionTable = ObjectDefinitionTable.GetBlankInstance();
+
+	private final List<CompilerWarning> compilerWarnings = new ArrayList<>();
+
+	private boolean logCompilerWarnings = true;
 
 	//TODO: Need to figure out how to do known procs.
 	public void setConstant(String name, Construct value) {
@@ -101,6 +107,71 @@ public class CompilerEnvironment implements Environment.EnvironmentImpl {
 
 	public ObjectDefinitionTable getObjectDefinitionTable() {
 		return this.objectDefinitionTable;
+	}
+
+	/**
+	 * Turns on or off logging of compiler warnings. By default, this is on.
+	 * @param logCompilerWarnings
+	 */
+	public void setLogCompilerWarnings(boolean logCompilerWarnings) {
+		this.logCompilerWarnings = logCompilerWarnings;
+	}
+
+	/**
+	 * Adds the compiler warning object to the environment, which can be used later by tools and such in a tool
+	 * specific way. Additionally, unless set in the environment otherwise, also logs the warning to the console.
+	 * @param fileOptions The file options. May be null if not available, but then that means this warning is not
+	 * suppressable.
+	 * @param warning The compiler warning itself. Note that if the suppression category is null, this will neither
+	 * be added to the list, nor logged.
+	 */
+	public void addCompilerWarning(FileOptions fileOptions, CompilerWarning warning) {
+		boolean isSuppressed;
+		if(fileOptions == null || warning.getSuppressCategory() == null) {
+			isSuppressed = false;
+		} else {
+			isSuppressed = fileOptions.isWarningSuppressed(warning.getSuppressCategory());
+		}
+		if(isSuppressed) {
+			return;
+		}
+		this.compilerWarnings.add(warning);
+		if(logCompilerWarnings) {
+			MSLog.GetLogger().Log(MSLog.Tags.COMPILER, LogLevel.WARNING, warning.getMessage(), warning.getTarget());
+		}
+	}
+
+	/**
+	 * Code upgrade notices are similar to compiler warnings in all ways except the logic for deciding when to display
+	 * them. They only display when strict mode is enabled, and they can even still be suppressed. The CompilerWarning
+	 * object should have the {@link FileOptions.SuppressWarning#CodeUpgradeNotices} type, but it is ignored either way.
+	 * <p>
+	 * Warnings added in this way show up in {@link #getCompilerWarnings()}.
+	 * @param fileOptions
+	 * @param warning
+	 */
+	public void addCodeUpgradeNotice(FileOptions fileOptions, CompilerWarning warning) {
+		if(fileOptions == null) {
+			return;
+		}
+		if(!fileOptions.isStrict()) {
+			return;
+		}
+		if(fileOptions.isWarningSuppressed(FileOptions.SuppressWarning.CodeUpgradeNotices)) {
+			return;
+		}
+		this.compilerWarnings.add(warning);
+		if(logCompilerWarnings) {
+			MSLog.GetLogger().Log(MSLog.Tags.COMPILER, LogLevel.WARNING, warning.getMessage(), warning.getTarget());
+		}
+	}
+
+	/**
+	 * Returns a list of compiler warnings that were logged during compilation.
+	 * @return
+	 */
+	public List<CompilerWarning> getCompilerWarnings() {
+		return new ArrayList<>(compilerWarnings);
 	}
 
 }

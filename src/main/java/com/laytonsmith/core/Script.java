@@ -26,6 +26,7 @@ import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.environments.GlobalEnv;
 import com.laytonsmith.core.environments.InvalidEnvironmentException;
 import com.laytonsmith.core.exceptions.CRE.AbstractCREException;
+import com.laytonsmith.core.exceptions.CRE.CRECastException;
 import com.laytonsmith.core.exceptions.CRE.CREInsufficientPermissionException;
 import com.laytonsmith.core.exceptions.CRE.CREInvalidProcedureException;
 import com.laytonsmith.core.exceptions.CRE.CREStackOverflowError;
@@ -43,7 +44,6 @@ import com.laytonsmith.core.extensions.ExtensionManager;
 import com.laytonsmith.core.extensions.ExtensionTracker;
 import com.laytonsmith.core.functions.Function;
 import com.laytonsmith.core.functions.FunctionBase;
-import com.laytonsmith.core.functions.FunctionList;
 import com.laytonsmith.core.natives.interfaces.Mixed;
 import com.laytonsmith.core.profiler.ProfilePoint;
 
@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A script is a section of code that has been preprocessed and split into separate commands/actions. For instance, the
@@ -83,6 +84,7 @@ public class Script {
 	private final long compileTime;
 	private String label;
 	private Environment currentEnv;
+	private Set<Class<? extends Environment.EnvironmentImpl>> envs;
 	private FileOptions fileOptions;
 
 	private static final SimpleVersion GARBAGE_VERSION = new SimpleVersion(0, 0, 0, "version-error");
@@ -123,11 +125,13 @@ public class Script {
 		return b.toString();
 	}
 
-	public Script(List<Token> left, List<Token> right, String label, FileOptions fileOptions) {
+	public Script(List<Token> left, List<Token> right, String label,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs, FileOptions fileOptions) {
 		this.left = left;
 		this.fullRight = right;
 		this.leftVars = new HashMap<>();
 		this.label = label;
+		this.envs = envs;
 		compileTime = System.currentTimeMillis();
 		this.fileOptions = fileOptions;
 	}
@@ -277,6 +281,14 @@ public class Script {
 			}
 		}
 
+		final CFunction possibleFunction;
+		try {
+			possibleFunction = (CFunction) m;
+		} catch (ClassCastException e) {
+			throw ConfigRuntimeException.CreateUncatchableException("Expected to find CFunction at runtime but found: "
+					+ m.val(), m.getTarget());
+		}
+
 		StackTraceManager stManager = env.getEnv(GlobalEnv.class).GetStackTraceManager();
 		boolean addedRootStackElement = false;
 		try {
@@ -287,7 +299,8 @@ public class Script {
 			}
 			stManager.setCurrentTarget(c.getTarget());
 			env.getEnv(GlobalEnv.class).SetScript(this);
-			if(m.val().charAt(0) == '_' && m.val().charAt(1) != '_') {
+
+			if(possibleFunction.hasProcedure()) {
 				//Not really a function, so we can't put it in Function.
 				Procedure p = getProc(m.val());
 				if(p == null) {
@@ -304,13 +317,27 @@ public class Script {
 					pp.stop();
 				}
 				return ret;
+			} else if(possibleFunction.hasIVariable()) {
+				//Check if this ivar is a closure and execute it
+				Mixed closure = env.getEnv(GlobalEnv.class).GetVarList().get(m.val(), m.getTarget(), env).ival();
+				if(!closure.isInstanceOf(CClosure.TYPE)) {
+					throw new CRECastException("Expecting variable to contain a closure to execute, but found type: "
+							+ closure.typeof().getSimpleName(), m.getTarget());
+				}
+				Mixed[] list = new Mixed[c.numberOfChildren()];
+				for(int i = 0; i < c.numberOfChildren(); i++) {
+					list[i] = env.getEnv(GlobalEnv.class).GetScript().seval(c.getChildAt(i), env);
+				}
+				return ((CClosure) closure).executeCallable(list);
 			}
+
 			final Function f;
 			try {
-				f = (Function) FunctionList.getFunction((CFunction) m);
-			} catch (ConfigCompileException | ClassCastException e) {
+				f = possibleFunction.getFunction();
+			} catch (ConfigCompileException e) {
 				//Turn it into a config runtime exception. This shouldn't ever happen though.
-				throw ConfigRuntimeException.CreateUncatchableException("Unable to find function " + m.val(), m.getTarget());
+				throw ConfigRuntimeException.CreateUncatchableException("Unable to find function at runtime: "
+						+ m.val(), m.getTarget());
 			}
 
 			ArrayList<Mixed> args = new ArrayList<>();
@@ -872,8 +899,16 @@ public class Script {
 		right.add(temp);
 		cright = new ArrayList<>();
 		for(List<Token> l : right) {
-			cright.add(MethodScriptCompiler.compile(new TokenStream(l, fileOptions), null));
+			cright.add(MethodScriptCompiler.compile(new TokenStream(l, fileOptions), null, envs));
 		}
+	}
+
+	/**
+	 * Returns the parse trees representing the right side of all scripts.
+	 * @return
+	 */
+	public List<ParseTree> getTrees() {
+		return new ArrayList<>(cright);
 	}
 
 	public void checkAmbiguous(List<Script> scripts) throws ConfigCompileException {

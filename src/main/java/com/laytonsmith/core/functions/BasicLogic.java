@@ -1,6 +1,7 @@
 package com.laytonsmith.core.functions;
 
 import com.laytonsmith.PureUtilities.Version;
+import com.laytonsmith.annotations.OperatorPreferred;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.annotations.core;
 import com.laytonsmith.annotations.seealso;
@@ -14,6 +15,7 @@ import com.laytonsmith.core.compiler.FileOptions;
 import com.laytonsmith.core.compiler.OptimizationUtilities;
 import com.laytonsmith.core.constructs.CArray;
 import com.laytonsmith.core.constructs.CBoolean;
+import com.laytonsmith.core.constructs.CFunction;
 import com.laytonsmith.core.constructs.CInt;
 import com.laytonsmith.core.constructs.CNull;
 import com.laytonsmith.core.constructs.CString;
@@ -47,6 +49,7 @@ public class BasicLogic {
 
 	@api
 	@seealso({nequals.class, sequals.class, snequals.class})
+	@OperatorPreferred("==")
 	public static class equals extends AbstractFunction implements Optimizable {
 
 		private static final equals SELF = new equals();
@@ -189,6 +192,7 @@ public class BasicLogic {
 
 	@api
 	@seealso({equals.class, nequals.class, snequals.class})
+	@OperatorPreferred("===")
 	public static class sequals extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -239,7 +243,7 @@ public class BasicLogic {
 				throw new CREFormatException(this.getName() + " expects 2 arguments.", t);
 			}
 			if(args[1].typeof().equals(args[0].typeof())) {
-				if(args[0].isInstanceOf(CString.class) && args[1].isInstanceOf(CString.class)) {
+				if(args[0].isInstanceOf(CString.TYPE) && args[1].isInstanceOf(CString.TYPE)) {
 					// Check for actual string equality, so we don't do type massaging
 					// for numeric strings. Thus '2' !== '2.0'
 					return CBoolean.get(args[0].val().equals(args[1].val()));
@@ -269,6 +273,7 @@ public class BasicLogic {
 
 	@api
 	@seealso({sequals.class})
+	@OperatorPreferred("!==")
 	public static class snequals extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -332,6 +337,7 @@ public class BasicLogic {
 
 	@api
 	@seealso({equals.class, sequals.class, snequals.class})
+	@OperatorPreferred("!=")
 	public static class nequals extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -651,7 +657,7 @@ public class BasicLogic {
 
 		@Override
 		public CBoolean exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class) && args[1].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE) && args[1].isInstanceOf(CArray.TYPE)) {
 				return CBoolean.get(args[0] == args[1]);
 			} else {
 				return new equals().exec(t, environment, args);
@@ -700,6 +706,7 @@ public class BasicLogic {
 
 	@api
 	@seealso({gt.class, lte.class, gte.class})
+	@OperatorPreferred("<")
 	public static class lt extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -767,6 +774,7 @@ public class BasicLogic {
 
 	@api
 	@seealso({lt.class, lte.class, gte.class})
+	@OperatorPreferred(">")
 	public static class gt extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -834,6 +842,7 @@ public class BasicLogic {
 
 	@api
 	@seealso({lt.class, gt.class, gte.class})
+	@OperatorPreferred("<=")
 	public static class lte extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -902,6 +911,7 @@ public class BasicLogic {
 
 	@api
 	@seealso({lt.class, gt.class, lte.class})
+	@OperatorPreferred(">=")
 	public static class gte extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -969,6 +979,7 @@ public class BasicLogic {
 
 	@api(environments = {GlobalEnv.class})
 	@seealso({or.class})
+	@OperatorPreferred("&&")
 	public static class and extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -1038,7 +1049,10 @@ public class BasicLogic {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			OptimizationUtilities.pullUpLikeFunctions(children, getName());
 			Iterator<ParseTree> it = children.iterator();
 			boolean foundFalse = false;
@@ -1143,7 +1157,10 @@ public class BasicLogic {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			OptimizationUtilities.pullUpLikeFunctions(children, getName());
 			Iterator<ParseTree> it = children.iterator();
 			boolean foundFalse = false;
@@ -1225,6 +1242,7 @@ public class BasicLogic {
 
 	@api(environments = {GlobalEnv.class})
 	@seealso({and.class})
+	@OperatorPreferred("||")
 	public static class or extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -1293,7 +1311,10 @@ public class BasicLogic {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			OptimizationUtilities.pullUpLikeFunctions(children, getName());
 			Iterator<ParseTree> it = children.iterator();
 			boolean foundTrue = false;
@@ -1393,7 +1414,7 @@ public class BasicLogic {
 		public Mixed execs(Target t, Environment env, Script parent, ParseTree... nodes) {
 			for(ParseTree tree : nodes) {
 				Mixed c = env.getEnv(GlobalEnv.class).GetScript().seval(tree, env);
-				if(ArgumentValidation.getBoolean(c, t)) {
+				if(ArgumentValidation.getBooleanish(c, t)) {
 					return c;
 				}
 			}
@@ -1401,53 +1422,11 @@ public class BasicLogic {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			OptimizationUtilities.pullUpLikeFunctions(children, getName());
-			Iterator<ParseTree> it = children.iterator();
-			boolean foundTrue = false;
-			while(it.hasNext()) {
-				//Remove hard coded false values, they won't affect the calculation at all
-				//Also walk through the children, and if we find a hardcoded true, discard all the following values.
-				//If we do find a hardcoded true, though we can know ahead of time that this statement as a whole
-				//will be true, we can't remove everything, as the parameters beforehand may have side effects, so
-				//we musn't remove them.
-				ParseTree child = it.next();
-				if(foundTrue) {
-					it.remove();
-					continue;
-				}
-				if(child.isConst()) {
-					if(ArgumentValidation.getBoolean(child.getData(), t) == false) {
-						it.remove();
-					} else {
-						foundTrue = true;
-					}
-				}
-			}
-			// TODO: Can't do this yet, because children of side effect free functions may still have side effects that
-			// we need to maintain. However, with complications introduced by code branch functions, we can't process
-			// this yet.
-//			if(foundTrue){
-//				//However, we can remove any functions that have no side effects that come before the true.
-//				it = children.iterator();
-//				while(it.hasNext()){
-//					Mixed data = it.next().getData();
-//					if(data instanceof CFunction && ((CFunction)data).getFunction() instanceof Optimizable){
-//						if(((Optimizable)((CFunction)data).getFunction()).optimizationOptions().contains(OptimizationOption.NO_SIDE_EFFECTS)){
-//							it.remove();
-//						}
-//					}
-//				}
-//			}
-			// At this point, it could be that there are some conditions with side effects, followed by a final true. However,
-			// if true is the only remaining condition (which could be) then we can simply return true here.
-			if(children.size() == 1 && children.get(0).isConst() && ArgumentValidation.getBoolean(children.get(0).getData(), t) == true) {
-				return new ParseTree(children.get(0).getData(), fileOptions);
-			}
-			if(children.isEmpty()) {
-				//We've removed all the children, so return false, because they were all false.
-				return new ParseTree(CBoolean.FALSE, fileOptions);
-			}
 			return null;
 		}
 
@@ -1476,7 +1455,7 @@ public class BasicLogic {
 
 		@Override
 		public Set<OptimizationOption> optimizationOptions() {
-			return EnumSet.of(OptimizationOption.OPTIMIZE_DYNAMIC, OptimizationOption.CONSTANT_OFFLINE);
+			return EnumSet.of(OptimizationOption.OPTIMIZE_DYNAMIC);
 		}
 
 		@Override
@@ -1490,6 +1469,7 @@ public class BasicLogic {
 	}
 
 	@api
+	@OperatorPreferred("!")
 	public static class not extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -1539,8 +1519,18 @@ public class BasicLogic {
 		public Set<OptimizationOption> optimizationOptions() {
 			return EnumSet.of(
 					OptimizationOption.CONSTANT_OFFLINE,
-					OptimizationOption.CACHE_RETURN
+					OptimizationOption.CACHE_RETURN,
+					OptimizationOption.OPTIMIZE_DYNAMIC
 			);
+		}
+
+		@Override
+		public ParseTree optimizeDynamic(Target t, Environment env, Set<Class<? extends Environment.EnvironmentImpl>> envs, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+			if(CFunction.IsFunction(children.get(0), not.class)) {
+				// not(not(val)) == val
+				return children.get(0).getChildAt(0);
+			}
+			return null;
 		}
 
 		@Override
@@ -1876,7 +1866,10 @@ public class BasicLogic {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 2) {
 				throw new ConfigCompileException("bit_and() requires at least 2 arguments.", t);
 			}
@@ -1954,7 +1947,10 @@ public class BasicLogic {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 2) {
 				throw new ConfigCompileException("bit_or() requires at least 2 arguments.", t);
 			}
@@ -2028,7 +2024,10 @@ public class BasicLogic {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 2) {
 				throw new ConfigCompileException("bit_xor() requires at least 2 arguments.", t);
 			}
@@ -2340,7 +2339,10 @@ public class BasicLogic {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.isEmpty()) {
 				throw new CREFormatException(this.getName() + " expects at least 1 argument.", t);
 			}
@@ -2401,6 +2403,17 @@ public class BasicLogic {
 		@Override
 		public Version since() {
 			return MSVersion.V3_3_3;
+		}
+
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[] {
+				new ExampleScript("", "hash(1);"),
+				new ExampleScript("", "hash(2);"),
+				new ExampleScript("", "hash(3);"),
+				new ExampleScript("", "hash('Hello World!');"),
+				new ExampleScript("", "hash(array(1, 2, 3));")
+			};
 		}
 
 	}

@@ -19,6 +19,7 @@ import com.laytonsmith.PureUtilities.Signals;
 import com.laytonsmith.PureUtilities.TermColors;
 import com.laytonsmith.abstraction.AbstractConvertor;
 import com.laytonsmith.abstraction.Implementation;
+import com.laytonsmith.abstraction.MCAttributeModifier;
 import com.laytonsmith.abstraction.MCColor;
 import com.laytonsmith.abstraction.MCEnchantment;
 import com.laytonsmith.abstraction.MCEntity;
@@ -38,14 +39,19 @@ import com.laytonsmith.abstraction.MCRecipe;
 import com.laytonsmith.abstraction.MCServer;
 import com.laytonsmith.abstraction.MCWorld;
 import com.laytonsmith.abstraction.blocks.MCMaterial;
+import com.laytonsmith.abstraction.enums.MCAttribute;
 import com.laytonsmith.abstraction.enums.MCDyeColor;
+import com.laytonsmith.abstraction.enums.MCEquipmentSlot;
 import com.laytonsmith.abstraction.enums.MCPatternShape;
 import com.laytonsmith.abstraction.enums.MCPotionType;
 import com.laytonsmith.abstraction.enums.MCRecipeType;
 import com.laytonsmith.abstraction.enums.MCTone;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.annotations.convert;
+import com.laytonsmith.annotations.seealso;
+import com.laytonsmith.annotations.typeof;
 import com.laytonsmith.commandhelper.CommandHelperPlugin;
+import com.laytonsmith.core.Documentation;
 import com.laytonsmith.core.Installer;
 import com.laytonsmith.core.LogLevel;
 import com.laytonsmith.core.MethodScriptCompiler;
@@ -55,9 +61,13 @@ import com.laytonsmith.core.ParseTree;
 import com.laytonsmith.core.Prefs;
 import com.laytonsmith.core.Profiles;
 import com.laytonsmith.core.Static;
+import com.laytonsmith.core.compiler.TokenStream;
 import com.laytonsmith.core.constructs.CArray;
+import com.laytonsmith.core.constructs.CBoolean;
 import com.laytonsmith.core.constructs.CClosure;
+import com.laytonsmith.core.constructs.CInt;
 import com.laytonsmith.core.constructs.CString;
+import com.laytonsmith.core.constructs.Construct;
 import com.laytonsmith.core.constructs.IVariable;
 import com.laytonsmith.core.constructs.Target;
 import com.laytonsmith.core.constructs.Variable;
@@ -68,14 +78,21 @@ import com.laytonsmith.core.events.Driver;
 import com.laytonsmith.core.events.EventUtils;
 import com.laytonsmith.core.events.drivers.CmdlineEvents;
 import com.laytonsmith.core.exceptions.CRE.CREFormatException;
+import com.laytonsmith.core.exceptions.CRE.CREIOException;
+import com.laytonsmith.core.exceptions.CRE.CREThrowable;
 import com.laytonsmith.core.exceptions.CancelCommandException;
 import com.laytonsmith.core.exceptions.ConfigCompileException;
 import com.laytonsmith.core.exceptions.ConfigCompileGroupException;
 import com.laytonsmith.core.exceptions.ConfigRuntimeException;
+import com.laytonsmith.core.functions.Cmdline;
+import com.laytonsmith.core.functions.Echoes;
+import com.laytonsmith.core.functions.ExampleScript;
+import com.laytonsmith.core.functions.Function;
 import com.laytonsmith.core.functions.FunctionBase;
 import com.laytonsmith.core.functions.FunctionList;
 import com.laytonsmith.core.profiler.ProfilePoint;
 import com.laytonsmith.persistence.DataSourceException;
+import com.laytonsmith.tools.docgen.DocGen;
 import com.laytonsmith.tools.docgen.DocGenTemplates;
 import jline.console.ConsoleReader;
 import jline.console.completer.ArgumentCompleter;
@@ -83,14 +100,23 @@ import jline.console.completer.StringsCompleter;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.laytonsmith.PureUtilities.TermColors.BLUE;
 import static com.laytonsmith.PureUtilities.TermColors.RED;
@@ -98,28 +124,6 @@ import static com.laytonsmith.PureUtilities.TermColors.YELLOW;
 import static com.laytonsmith.PureUtilities.TermColors.p;
 import static com.laytonsmith.PureUtilities.TermColors.pl;
 import static com.laytonsmith.PureUtilities.TermColors.reset;
-import com.laytonsmith.annotations.seealso;
-import com.laytonsmith.annotations.typeof;
-import com.laytonsmith.core.Documentation;
-import com.laytonsmith.core.compiler.TokenStream;
-import com.laytonsmith.core.constructs.CBoolean;
-import com.laytonsmith.core.constructs.CInt;
-import com.laytonsmith.core.constructs.Construct;
-import com.laytonsmith.core.exceptions.CRE.CREIOException;
-import com.laytonsmith.core.exceptions.CRE.CREThrowable;
-import com.laytonsmith.core.functions.Cmdline;
-import com.laytonsmith.core.functions.Echoes;
-import com.laytonsmith.core.functions.ExampleScript;
-import com.laytonsmith.core.functions.Function;
-import com.laytonsmith.tools.docgen.DocGen;
-import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * This is a command line implementation of the in game interpreter mode. This should only be run while the server is
@@ -268,7 +272,8 @@ public final class Interpreter {
 			final ConsoleReader reader = new ConsoleReader();
 			reader.setExpandEvents(false);
 			//Get a list of all the function names. This will be provided to the auto completer.
-			Set<FunctionBase> functions = FunctionList.getFunctionList(api.Platforms.INTERPRETER_JAVA);
+			Set<FunctionBase> functions = FunctionList.getFunctionList(api.Platforms.INTERPRETER_JAVA,
+					env.getEnvClasses());
 			List<String> names = new ArrayList<>();
 			for(FunctionBase f : functions) {
 				if(f.appearInDocumentation()) {
@@ -343,7 +348,8 @@ public final class Interpreter {
 
 		String autoInclude = FileUtil.read(MethodScriptFileLocations.getDefault().getCmdlineInterpreterAutoIncludeFile());
 		try {
-			MethodScriptCompiler.execute(autoInclude, MethodScriptFileLocations.getDefault().getCmdlineInterpreterAutoIncludeFile(), true, env, null, null, null);
+			MethodScriptCompiler.execute(autoInclude, MethodScriptFileLocations.getDefault()
+					.getCmdlineInterpreterAutoIncludeFile(), true, env, env.getEnvClasses(), null, null, null);
 		} catch (ConfigCompileException ex) {
 			ConfigRuntimeException.HandleUncaughtException(ex, "Interpreter will continue to run, however.", null);
 		} catch (ConfigCompileGroupException ex) {
@@ -438,7 +444,8 @@ public final class Interpreter {
 						String helpCommand = m.group(2);
 						try {
 							List<FunctionBase> fl = new ArrayList<>();
-							for(FunctionBase fb : FunctionList.getFunctionList(api.Platforms.INTERPRETER_JAVA)) {
+							for(FunctionBase fb : FunctionList.getFunctionList(api.Platforms.INTERPRETER_JAVA,
+									env.getEnvClasses())) {
 								if(fb.getName().matches("^" + helpCommand + "$")) {
 									fl.add(fb);
 								}
@@ -495,7 +502,7 @@ public final class Interpreter {
 	public static String formatDocsForCmdline(String function, boolean showExamples) throws ConfigCompileException,
 			IOException, DataSourceException, URISyntaxException, DocGenTemplates.Generator.GenerateException {
 		StringBuilder b = new StringBuilder();
-		FunctionBase f = FunctionList.getFunction(function, Target.UNKNOWN);
+		FunctionBase f = FunctionList.getFunction(function, null, Target.UNKNOWN);
 		DocGen.DocInfo d = new DocGen.DocInfo(f.docs());
 		b.append(TermColors.CYAN).append(d.ret).append(" ");
 		b.append(TermColors.RESET).append(f.getName()).append("(")
@@ -506,8 +513,8 @@ public final class Interpreter {
 				b.append("Throws: ");
 				Set<String> th = new HashSet<>();
 				for(Class<? extends CREThrowable> c : thrown) {
-					if(c.getAnnotation(typeof.class) != null) {
-						typeof t = c.getAnnotation(typeof.class);
+					if(ClassDiscovery.GetClassAnnotation(c, typeof.class) != null) {
+						typeof t = ClassDiscovery.GetClassAnnotation(c, typeof.class);
 						th.add(t.value());
 					}
 				}
@@ -573,7 +580,7 @@ public final class Interpreter {
 		return b.toString();
 	}
 
-	private static String reverseHTML(String input) {
+	public static String reverseHTML(String input) {
 		input = input
 				.replaceAll("\\<br(.*?)>", "\n")
 				.replaceAll("</div>", "\n")
@@ -590,7 +597,7 @@ public final class Interpreter {
 				String function = functionMatcher.group(1);
 				String color;
 				try {
-					FunctionBase f = FunctionList.getFunction(function, Target.UNKNOWN);
+					FunctionBase f = FunctionList.getFunction(function, null, Target.UNKNOWN);
 					if(f instanceof Function) {
 						if(((Function) f).isRestricted()) {
 							color = TermColors.CYAN;
@@ -766,8 +773,8 @@ public final class Interpreter {
 		ProfilePoint compile = env.getEnv(GlobalEnv.class).GetProfiler().start("Compilation", LogLevel.VERBOSE);
 		final ParseTree tree;
 		try {
-			TokenStream stream = MethodScriptCompiler.lex(script, fromFile, true);
-			tree = MethodScriptCompiler.compile(stream, env);
+			TokenStream stream = MethodScriptCompiler.lex(script, env, fromFile, true);
+			tree = MethodScriptCompiler.compile(stream, env, env.getEnvClasses());
 		} finally {
 			compile.stop();
 		}
@@ -1031,12 +1038,15 @@ public final class Interpreter {
 					FileUtil.write(powershellManifest, new File("C:/Program Files/WindowsPowerShell/Modules/"
 							+ "MethodScript/MethodScript.psd1"));
 
-					// 5. Put the mscript.cmd file in C:\Program Files\MethodScript
-					String batchScript = Static.GetStringResource("/interpreter-helpers/windows/mscript.cmd");
-					FileUtil.write(batchScript, new File("C:/Program Files/MethodScript/mscript.cmd"),
+					// 5. Put the mscript.exe file in C:\Program Files\MethodScript
+					byte[] exe = StreamUtils.GetBytes(Interpreter.class
+							.getResource("/interpreter-helpers/windows/mscript.exe").openStream());
+
+					//= Static.GetStringResource("/interpreter-helpers/windows/mscript.cmd");
+					FileUtil.write(exe, new File("C:/Program Files/MethodScript/mscript.exe"),
 							FileWriteMode.OVERWRITE, true);
 
-					// 6. Add C:\Program Files\MethodScript\mscript.cmd to the PATH, checking first if it's already
+					// 6. Add C:\Program Files\MethodScript to the PATH, checking first if it's already
 					// there.
 					if(!System.getenv("PATH").contains("MethodScript")) {
 						String pathKey = "System\\CurrentControlSet\\Control\\Session Manager\\Environment";
@@ -1147,6 +1157,11 @@ public final class Interpreter {
 		}
 
 		@Override
+		public MCAttributeModifier GetAttributeModifier(MCAttribute attr, UUID id, String name, double amt, MCAttributeModifier.Operation op, MCEquipmentSlot slot) {
+			throw new UnsupportedOperationException("This method is not supported from a shell.");
+		}
+
+		@Override
 		public void Startup(CommandHelperPlugin chp) {
 
 		}
@@ -1198,6 +1213,11 @@ public final class Interpreter {
 
 		@Override
 		public MCPluginMeta GetPluginMeta() {
+			throw new UnsupportedOperationException("This method is not supported from a shell.");
+		}
+
+		@Override
+		public MCMaterial[] GetMaterialValues() {
 			throw new UnsupportedOperationException("This method is not supported from a shell.");
 		}
 

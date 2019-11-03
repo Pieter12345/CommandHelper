@@ -97,7 +97,7 @@ public class Procedure implements Cloneable {
 		} else if(tree.getData() instanceof CFunction) {
 			//If the function itself is not optimizable, we needn't recurse.
 			try {
-				FunctionBase fb = FunctionList.getFunction((CFunction) tree.getData());
+				FunctionBase fb = FunctionList.getFunction((CFunction) tree.getData(), null);
 				if(fb instanceof Function) {
 					Function f = (Function) fb;
 					if(f instanceof ControlFlow._return) {
@@ -235,9 +235,15 @@ public class Procedure implements Cloneable {
 		} catch (FunctionReturnException e) {
 			// Normal exit
 			Mixed ret = e.getReturn();
-			if(!InstanceofUtil.isInstanceof(ret, returnType, env)) {
-				throw new CRECastException("Expected procedure \"" + name + "\" to return a value of type " + returnType.val()
-						+ " but a value of type " + ret.typeof() + " was returned instead", ret.getTarget());
+			if(returnType.equals(Auto.TYPE)) {
+				return ret;
+			}
+			if(returnType.equals(CVoid.TYPE) != ret.equals(CVoid.VOID)
+					|| !ret.equals(CNull.NULL) && !ret.equals(CVoid.VOID)
+					&& !InstanceofUtil.isInstanceof(ret, returnType, env)) {
+				throw new CRECastException("Expected procedure \"" + name + "\" to return a value of type "
+						+ returnType.val() + " but a value of type " + ret.typeof() + " was returned instead",
+						ret.getTarget());
 			}
 			return ret;
 		} catch (LoopManipulationException ex) {

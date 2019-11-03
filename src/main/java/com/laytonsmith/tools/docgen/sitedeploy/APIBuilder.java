@@ -2,6 +2,7 @@ package com.laytonsmith.tools.docgen.sitedeploy;
 
 import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
 import com.laytonsmith.PureUtilities.Common.StreamUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.abstraction.Implementation;
 import com.laytonsmith.annotations.api.Platforms;
@@ -55,7 +56,6 @@ public class APIBuilder {
 		ExtensionManager.AddDiscoveryLocation(MethodScriptFileLocations.getDefault().getExtensionsDirectory());
 		ExtensionManager.Cache(MethodScriptFileLocations.getDefault().getExtensionCacheDirectory());
 		ExtensionManager.Initialize(ClassDiscovery.getDefaultInstance());
-		ExtensionManager.Startup();
 		StreamUtils.GetSystemOut().println(JSONValue.toJSONString(new APIBuilder().build()));
 	}
 
@@ -70,11 +70,16 @@ public class APIBuilder {
 		{
 			// functions
 			Map<String, Map<String, Object>> api = new TreeMap<>();
-			for(FunctionBase f : FunctionList.getFunctionList(Platforms.INTERPRETER_JAVA)) {
+			for(FunctionBase f : FunctionList.getFunctionList(Platforms.INTERPRETER_JAVA, null)) {
 				if(f instanceof Function) {
 					Function ff = (Function) f;
+					DocGen.DocInfo di;
+					try {
+						di = new DocGen.DocInfo(ff.docs());
+					} catch (IllegalArgumentException ex) {
+						continue;
+					}
 					Map<String, Object> function = new TreeMap<>();
-					DocGen.DocInfo di = new DocGen.DocInfo(ff.docs());
 					function.put("name", ff.getName());
 					function.put("ret", di.ret);
 					function.put("args", di.originalArgs);
@@ -82,7 +87,7 @@ public class APIBuilder {
 					try {
 						if(ff.thrown() != null) {
 							for(Class<? extends CREThrowable> c : ff.thrown()) {
-								thrown.add(c.getAnnotation(typeof.class).value());
+								thrown.add(ClassDiscovery.GetClassAnnotation(c, typeof.class).value());
 							}
 						}
 					} catch (Throwable t) {
@@ -105,7 +110,17 @@ public class APIBuilder {
 					hide athide = ff.getClass().getAnnotation(hide.class);
 					String hidden = athide == null ? null : athide.value();
 					function.put("hidden", hidden);
-					String extId = ExtensionManager.getTrackers().get(ff.getSourceJar()).getIdentifier();
+					ExtensionTracker et = ExtensionManager.getTrackers().get(ff.getSourceJar());
+					String extId;
+					if(et != null) {
+						extId = et.getIdentifier();
+					} else {
+						// Legacy extensions don't have an ExtensionTracker, so we need to come up with a name
+						// for them. Just use the jar name, but remove the oldstyle- that is prepended by the
+						// extension manager.
+						extId = StringUtils.replaceLast(new java.io.File(ff.getSourceJar().getPath().replaceFirst("/", ""))
+								.getName().replaceFirst("oldstyle-", ""), ".jar", "");
+					}
 					function.put("source", extId);
 					api.put(ff.getName(), function);
 				}
@@ -117,9 +132,14 @@ public class APIBuilder {
 			Map<String, Map<String, Object>> events = new TreeMap<>();
 			for(Event e : EventList.GetEvents()) {
 				try {
+					DocGen.EventDocInfo edi;
+					try {
+						edi = new DocGen.EventDocInfo(e.docs(), e.getName());
+					} catch (IllegalArgumentException ex) {
+						continue;
+					}
 					Map<String, Object> event = new TreeMap<>();
 					event.put("name", e.getName());
-					DocGen.EventDocInfo edi = new DocGen.EventDocInfo(e.docs(), e.getName());
 					event.put("desc", edi.description);
 					Map<String, String> ed = new TreeMap<>();
 					for(DocGen.EventDocInfo.EventData edd : edi.eventData) {

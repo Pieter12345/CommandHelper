@@ -7,6 +7,7 @@ import com.laytonsmith.PureUtilities.SSHWrapper;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.PureUtilities.ZipReader;
 import com.laytonsmith.abstraction.StaticLayer;
+import com.laytonsmith.annotations.DocumentLink;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.annotations.core;
 import com.laytonsmith.annotations.noboilerplate;
@@ -60,7 +61,8 @@ public class FileHandling {
 
 	@api
 	@noboilerplate
-	public static class read extends AbstractFunction {
+	@DocumentLink(0)
+	public static class read extends AbstractFunction implements DocumentLinkProvider {
 
 		public static String file_get_contents(String fileLocation) throws Exception {
 			return new ZipReader(new File(fileLocation)).getFileContents();
@@ -79,14 +81,14 @@ public class FileHandling {
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws CancelCommandException, ConfigRuntimeException {
 			File location = Static.GetFileFromArgument(args[0].val(), env, t, null);
-			if(!Static.InCmdLine(env, true)) {
-				//Verify this file is not above the craftbukkit directory (or whatever directory the user specified
-				//Cmdline mode doesn't currently have this restriction.
-				if(!Security.CheckSecurity(location)) {
-					throw new CRESecurityException("You do not have permission to access the file '" + location + "'", t);
-				}
-			}
 			try {
+				if(!Static.InCmdLine(env, true)) {
+					//Verify this file is not above the craftbukkit directory (or whatever directory the user specified
+					//Cmdline mode doesn't currently have this restriction.
+					if(!Security.CheckSecurity(location)) {
+						throw new CRESecurityException("You do not have permission to access the file '" + location + "'", t);
+					}
+				}
 				String s = file_get_contents(location.getAbsolutePath());
 				s = s.replaceAll("\n|\r\n", "\n");
 				return new CString(s, t);
@@ -135,7 +137,8 @@ public class FileHandling {
 
 	@api
 	@noboilerplate
-	public static class comp_read extends AbstractFunction implements Optimizable {
+	@DocumentLink(0)
+	public static class comp_read extends AbstractFunction implements Optimizable, DocumentLinkProvider {
 
 		@Override
 		public Class<? extends CREThrowable>[] thrown() {
@@ -186,10 +189,14 @@ public class FileHandling {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.get(0).isDynamic()) {
 				throw new ConfigCompileException(getName() + " can only accept hardcoded paths.", t);
 			}
+
 			String ret = new read().exec(t, env, children.get(0).getData()).val();
 			ParseTree tree = new ParseTree(new CString(ret, t), fileOptions);
 			return tree;
@@ -199,29 +206,32 @@ public class FileHandling {
 
 	@api
 	@noboilerplate
-	public static class async_read extends AbstractFunction {
+	@DocumentLink(0)
+	public static class async_read extends AbstractFunction implements DocumentLinkProvider {
 
-		RunnableQueue queue = new RunnableQueue("MethodScript-asyncRead");
-		boolean started = false;
+		private static RunnableQueue queue;
+		private static volatile boolean started = false;
+		private static final Object LOCK = new Object();
 
+		// It's not really nested, it's within the callback, but the IDE doesn't understand that.
+		@SuppressWarnings("NestedSynchronizedStatement")
 		private void startup() {
 			if(!started) {
-				queue.invokeLater(null, new Runnable() {
-
-					@Override
-					public void run() {
-						//This warms up the queue. Apparently.
+				synchronized(LOCK) {
+					if(!started) {
+						queue = new RunnableQueue("MethodScript-asyncRead");
+						queue.invokeLater(null, () -> {
+							//This warms up the queue.
+						});
+						StaticLayer.GetConvertor().addShutdownHook(() -> {
+							synchronized(LOCK) {
+								queue.shutdown();
+								started = false;
+							}
+						});
+						started = true;
 					}
-				});
-				StaticLayer.GetConvertor().addShutdownHook(new Runnable() {
-
-					@Override
-					public void run() {
-						queue.shutdown();
-						started = false;
-					}
-				});
-				started = true;
+				}
 			}
 		}
 
@@ -245,14 +255,18 @@ public class FileHandling {
 			startup();
 			final String file = args[0].val();
 			final CClosure callback;
-			if(!(args[1].isInstanceOf(CClosure.class))) {
+			if(!(args[1].isInstanceOf(CClosure.TYPE))) {
 				throw new CRECastException("Expected paramter 2 of " + getName() + " to be a closure!", t);
 			} else {
 				callback = ((CClosure) args[1]);
 			}
 			if(!Static.InCmdLine(environment, true)) {
-				if(!Security.CheckSecurity(file)) {
-					throw new CRESecurityException("You do not have permission to access the file '" + file + "'", t);
+				try {
+					if(!Security.CheckSecurity(file)) {
+						throw new CRESecurityException("You do not have permission to access the file '" + file + "'", t);
+					}
+				} catch (IOException ex) {
+					throw new CREIOException(ex.getMessage(), t, ex);
 				}
 			}
 			queue.invokeLater(environment.getEnv(GlobalEnv.class).GetDaemonManager(), new Runnable() {
@@ -325,7 +339,7 @@ public class FileHandling {
 					+ " If @contents is null, that indicates that an exception occured, and @exception will not be null, but instead have an"
 					+ " exeption array. Otherwise, @contents will contain the file's contents, and @exception will be null. This method is useful"
 					+ " to use in two cases, either you need a remote file via SCP, or a local file is big enough that you notice a delay when"
-					+ " simply using the read() function.";
+					+ " simply using the read() function. async_read is threadsafe.";
 		}
 
 		@Override
@@ -336,7 +350,8 @@ public class FileHandling {
 	}
 
 	@api
-	public static class file_size extends AbstractFunction {
+	@DocumentLink(0)
+	public static class file_size extends AbstractFunction implements DocumentLinkProvider {
 
 		@Override
 		public Class<? extends CREThrowable>[] thrown() {
@@ -356,8 +371,12 @@ public class FileHandling {
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			File location = Static.GetFileFromArgument(args[0].val(), environment, t, null);
-			if(!Security.CheckSecurity(location) && !Static.InCmdLine(environment, true)) {
-				throw new CRESecurityException("You do not have permission to access the file '" + location + "'", t);
+			try {
+				if(!Security.CheckSecurity(location) && !Static.InCmdLine(environment, true)) {
+					throw new CRESecurityException("You do not have permission to access the file '" + location + "'", t);
+				}
+			} catch (IOException ex) {
+				throw new CREIOException(ex.getMessage(), t, ex);
 			}
 			return new CInt(location.length(), t);
 		}
@@ -405,14 +424,14 @@ public class FileHandling {
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
 			File location = Static.GetFileFromArgument(args[0].val(), env, t, null);
-			if(!Static.InCmdLine(env, true)) {
-				//Verify this file is not above the craftbukkit directory (or whatever directory the user specified
-				//Cmdline mode doesn't currently have this restriction.
-				if(!Security.CheckSecurity(location)) {
-					throw new CRESecurityException("You do not have permission to access the file '" + location + "'", t);
-				}
-			}
 			try {
+				if(!Static.InCmdLine(env, true)) {
+					//Verify this file is not above the craftbukkit directory (or whatever directory the user specified
+					//Cmdline mode doesn't currently have this restriction.
+					if(!Security.CheckSecurity(location)) {
+						throw new CRESecurityException("You do not have permission to access the file '" + location + "'", t);
+					}
+				}
 				InputStream stream = new GZIPInputStream(new FileInputStream(location));
 				return CByteArray.wrap(StreamUtils.GetBytes(stream), t);
 			} catch (IOException ex) {
@@ -435,7 +454,8 @@ public class FileHandling {
 		@Override
 		public String docs() {
 			return "byte_array {file} Reads in a gzipped file, and returns a byte_array for it. The file is returned"
-					+ " exactly as is on disk, no conversions are done. base-dir restrictions are enforced for the"
+					+ " exactly as is on disk, no conversions are done other than unzipping it."
+					+ " base-dir restrictions are enforced for the"
 					+ " path, the same as read(). If file is relative, it is assumed to be relative to this file.";
 		}
 
@@ -467,14 +487,14 @@ public class FileHandling {
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws ConfigRuntimeException {
 			File location = Static.GetFileFromArgument(args[0].val(), env, t, null);
-			if(!Static.InCmdLine(env, true)) {
-				//Verify this file is not above the craftbukkit directory (or whatever directory the user specified
-				//Cmdline mode doesn't currently have this restriction.
-				if(!Security.CheckSecurity(location)) {
-					throw new CRESecurityException("You do not have permission to access the file '" + location + "'", t);
-				}
-			}
 			try {
+				if(!Static.InCmdLine(env, true)) {
+					//Verify this file is not above the craftbukkit directory (or whatever directory the user specified
+					//Cmdline mode doesn't currently have this restriction.
+					if(!Security.CheckSecurity(location)) {
+						throw new CRESecurityException("You do not have permission to access the file '" + location + "'", t);
+					}
+				}
 				InputStream stream = new BufferedInputStream(new FileInputStream(location));
 				return CByteArray.wrap(StreamUtils.GetBytes(stream), t);
 			} catch (IOException ex) {
@@ -573,7 +593,8 @@ public class FileHandling {
 	}
 
 	@api
-	public static class file_resolve extends AbstractFunction {
+	@DocumentLink(0)
+	public static class file_resolve extends AbstractFunction implements DocumentLinkProvider {
 
 		@Override
 		public Class<? extends CREThrowable>[] thrown() {

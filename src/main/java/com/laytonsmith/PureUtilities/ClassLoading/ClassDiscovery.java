@@ -9,6 +9,7 @@ import com.laytonsmith.PureUtilities.ClassLoading.ClassMirror.FieldMirror;
 import com.laytonsmith.PureUtilities.ClassLoading.ClassMirror.MethodMirror;
 import com.laytonsmith.PureUtilities.Common.ClassUtils;
 import com.laytonsmith.PureUtilities.Common.FileUtil;
+import com.laytonsmith.PureUtilities.Common.StackTraceUtils;
 import com.laytonsmith.PureUtilities.Common.StreamUtils;
 import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.Pair;
@@ -142,6 +143,12 @@ public class ClassDiscovery {
 	private final Map<Class<? extends Annotation>, Set<ConstructorMirror<?>>> constructorAnnotationCache = new HashMap<>();
 	private final Map<Pair<Class<? extends Annotation>, Class<?>>, Set<ClassMirror<?>>>
 			classesWithAnnotationThatExtendCache = new HashMap<>();
+
+	/**
+	 * Cache for mapping real classes to class mirrors. This is not cleared when a new URL is added, since the mapping
+	 * would always be the same anyways.
+	 */
+	private final Map<Class<?>, ClassMirror<?>> classToMirrorCache = new HashMap<>();
 	/**
 	 * By default null, but this can be set per instance.
 	 */
@@ -305,7 +312,7 @@ public class ClassDiscovery {
 									f.getAbsolutePath().replaceFirst(Pattern.quote(new File(root).getAbsolutePath() + File.separator), "")));
 							ClassReader reader = new ClassReader(stream);
 							ClassMirrorVisitor mirrorVisitor = new ClassMirrorVisitor();
-							reader.accept(mirrorVisitor, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
+							reader.accept(mirrorVisitor, ClassReader.SKIP_FRAMES);
 							mirrors.add(mirrorVisitor.getMirror(new URL(url)));
 						} catch (IOException ex) {
 							Logger.getLogger(ClassDiscovery.class.getName()).log(Level.SEVERE, null, ex);
@@ -387,6 +394,14 @@ public class ClassDiscovery {
 		} else {
 			return defaultClassLoader;
 		}
+	}
+
+	/**
+	 * Adds the jar that the calling class is in to the discovery location. This is equivalent to running
+	 * {@code addDiscoveryLocation(ClassDiscovery.GetClassContainer(this.getClass()));}
+	 */
+	public void addThisJar() {
+		this.addDiscoveryLocation(GetClassContainer(StackTraceUtils.getCallingClass()));
 	}
 
 	/**
@@ -743,6 +758,35 @@ public class ClassDiscovery {
 		}
 		classesWithAnnotationThatExtendCache.put(id, (Set<ClassMirror<?>>) (Object) mirrors);
 		return mirrors;
+	}
+
+	/**
+	 * Returns the ClassMirror for the given Class, if it exists in the ecosystem. This is useful for obtaining
+	 * reflective information that ClassMirror provides, but Class doesn't. Note, however, this will only be able
+	 * to find classes that were loaded into the ecosystem in the first place, which may preclude most classes in
+	 * the actual ecosystem, including the core Java classes.
+	 * @param <T>
+	 * @param clazz
+	 * @return
+	 * @throws NoClassDefFoundError
+	 */
+	public <T> ClassMirror<T> getMirrorFromClass(Class<T> clazz) throws NoClassDefFoundError {
+		ClassMirror<?> cm = classToMirrorCache.get(clazz);
+		if(cm == null) {
+			for(ClassMirror<?> m : getKnownClasses()) {
+				if(m.getClassName().equals(clazz.getName().replace("$", "."))) {
+					cm = m;
+					classToMirrorCache.put(clazz, cm);
+					break;
+				}
+			}
+			if(cm == null) {
+				throw new NoClassDefFoundError("ClassDiscovery was unable to locate the class "
+						+ clazz + ". This can only load classes that are available to the ClassDiscovery system.");
+			}
+		}
+		return (ClassMirror<T>) cm;
+
 	}
 
 	/**
@@ -1143,5 +1187,31 @@ public class ClassDiscovery {
 		} catch (MalformedURLException e) {
 			throw new RuntimeException("While interrogating " + c.getName() + ", an unexpected exception was thrown for potential URL: \"" + packageRoot + "\"", e);
 		}
+	}
+
+	private static final Map<Pair<Class<?>, Class<? extends Annotation>>, Annotation> ANNOTATION_CACHE =
+			new HashMap<>();
+
+	/**
+	 * {@code Class.getAnnotation} is relatively slow, so this provides a utility cache in front of it, so that
+	 * multiple calls will not incur the penalty hit. Only the first call does the lookup.
+	 *
+	 * Unlike the other methods in this class, there is no way to clear the cache, because this only works with
+	 * concrete Java classes, and classes can't change annotations at runtime.
+	 * @param <T> The annotation type
+	 * @param clazz The class to find the annotation on
+	 * @param annotation The annotation class
+	 * @return The annotation, or null if the specified class does not have that annotation.
+	 */
+	public static <T extends Annotation> T GetClassAnnotation(Class<?> clazz, Class<T> annotation) {
+		Pair<Class<?>, Class<? extends Annotation>> pair = new Pair(clazz, annotation);
+		Annotation t = ANNOTATION_CACHE.get(pair);
+		if(t == null) {
+			t = clazz.getAnnotation(annotation);
+			ANNOTATION_CACHE.put(pair, t);
+		}
+		// This cast should always work, but since we're shoving all the annotations into the cache, the compiler
+		// can't know that the returned type will be T.
+		return (T) t;
 	}
 }

@@ -5,9 +5,12 @@ import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscoveryCache;
 import com.laytonsmith.PureUtilities.ClassLoading.ClassMirror.AnnotationMirror;
 import com.laytonsmith.PureUtilities.ClassLoading.ClassMirror.ClassMirror;
 import com.laytonsmith.PureUtilities.ClassLoading.DynamicClassLoader;
+import com.laytonsmith.PureUtilities.Common.FileUtil;
 import com.laytonsmith.PureUtilities.Common.OSUtils;
 import com.laytonsmith.PureUtilities.Common.StackTraceUtils;
 import com.laytonsmith.PureUtilities.Common.StreamUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
+import com.laytonsmith.PureUtilities.GCUtil;
 import com.laytonsmith.abstraction.Implementation;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.commandhelper.CommandHelperFileLocations;
@@ -19,6 +22,7 @@ import com.laytonsmith.core.Static;
 import com.laytonsmith.core.constructs.CFunction;
 import com.laytonsmith.core.constructs.Construct;
 import com.laytonsmith.core.constructs.Target;
+import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.events.Driver;
 import com.laytonsmith.core.events.Event;
 import com.laytonsmith.core.exceptions.ConfigCompileException;
@@ -30,8 +34,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLDecoder;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
+//import java.nio.file.Files;
+//import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,13 +43,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class ExtensionManager {
 
-	private static final Map<URL, ExtensionTracker> EXTENSIONS = new ConcurrentHashMap<>();
+	private static final Map<URL, ExtensionTracker> EXTENSIONS = new HashMap<>();
 	private static final List<File> LOCATIONS = new ArrayList<>();
 
 	/**
@@ -149,13 +152,14 @@ public class ExtensionManager {
 		// don't load stuff we aren't supposed to. This is in case the shutdown
 		// cleanup wasn't successful on the last run.
 		for(File f : extCache.listFiles()) {
-			try {
-				Files.delete(f.toPath());
-			} catch (IOException ex) {
-				Static.getLogger().log(Level.WARNING,
-						"[CommandHelper] Could not delete loose file "
-						+ f.getAbsolutePath() + ": " + ex.getMessage());
-			}
+//			try {
+				FileUtil.recursiveDelete(f);
+//				Files.delete(f.toPath());
+//			} catch (IOException ex) {
+//				Static.getLogger().log(Level.WARNING,
+//						"[CommandHelper] Could not delete loose file "
+//						+ f.getAbsolutePath() + ": " + ex.getMessage());
+//			}
 		}
 
 		// The cache, cd and dcl here will just be thrown away.
@@ -252,7 +256,7 @@ public class ExtensionManager {
 				if(namecount.containsKey(name.toLowerCase())) {
 					int i = namecount.get(name.toLowerCase());
 					name += "-" + i;
-					namecount.put(name.toLowerCase(), i++);
+					namecount.put(name.toLowerCase(), ++i);
 
 					MSLog.GetLogger().Log(MSLog.Tags.EXTENSIONS, LogLevel.WARNING,
 							f.getAbsolutePath() + " contains a duplicate internally"
@@ -267,7 +271,8 @@ public class ExtensionManager {
 				File newFile = new File(extCache, name.toLowerCase() + ".jar");
 
 				try {
-					Files.copy(f.toPath(), newFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+					FileUtil.copy(f, newFile, true);
+//					Files.copy(f.toPath(), newFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 				} catch (IOException ex) {
 					Static.getLogger().log(Level.SEVERE, "Could not copy '"
 							+ f.getName() + "' to cache: " + ex.getMessage());
@@ -311,7 +316,8 @@ public class ExtensionManager {
 					File newFile = new File(extCache, "oldstyle-" + f.getName());
 
 					try {
-						Files.copy(f.toPath(), newFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+						FileUtil.copy(f, newFile, true);
+//						Files.copy(f.toPath(), newFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 					} catch (IOException ex) {
 						Static.getLogger().log(Level.SEVERE, "Could not copy '"
 								+ f.getName() + "' to cache: " + ex.getMessage());
@@ -325,8 +331,8 @@ public class ExtensionManager {
 		dcl.destroy();
 
 		// Explicit call. Without this, jar files won't actually get unlocked on
-		// Windows. Of course, this is hit and miss, but that's fine; we tried.
-		System.gc();
+		// Windows.
+		GCUtil.BlockUntilGC();
 	}
 
 	/**
@@ -460,7 +466,10 @@ public class ExtensionManager {
 
 				if(trk == null) {
 					trk = new ExtensionTracker(url, cd, dcl);
-
+					if(trk.identifier == null) {
+						trk.identifier = StringUtils.replaceLast(new java.io.File(url.getPath().replaceFirst("/", ""))
+								.getName(), ".jar", "");
+					}
 					EXTENSIONS.put(url, trk);
 				}
 
@@ -546,8 +555,8 @@ public class ExtensionManager {
 		}
 
 		// Explicit call. Without this, jar files won't actually get unlocked on
-		// Windows. Of course, this is hit and miss, but that's fine; we tried.
-		System.gc();
+		// Windows.
+		GCUtil.BlockUntilGC();
 
 		File cacheDir = CommandHelperFileLocations.getDefault().getExtensionCacheDirectory();
 
@@ -557,12 +566,13 @@ public class ExtensionManager {
 
 		// Try to delete any loose files in the cache dir.
 		for(File f : cacheDir.listFiles()) {
-			try {
-				Files.delete(f.toPath());
-			} catch (IOException ex) {
-				StreamUtils.GetSystemOut().println("[CommandHelper] Could not delete loose file "
-						+ f.getAbsolutePath() + ": " + ex.getMessage());
-			}
+//			try {
+				FileUtil.recursiveDelete(f);
+//				Files.delete(f.toPath());
+//			} catch (IOException ex) {
+//				StreamUtils.GetSystemOut().println("[CommandHelper] Could not delete loose file "
+//						+ f.getAbsolutePath() + ": " + ex.getMessage());
+//			}
 		}
 	}
 
@@ -700,17 +710,28 @@ public class ExtensionManager {
 		}
 	}
 
-	public static FunctionBase GetFunction(Construct c, api.Platforms platform) throws ConfigCompileException {
+	public static FunctionBase GetFunction(Construct c, api.Platforms platform,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs)
+			throws ConfigCompileException {
 		if(platform == null) {
 			//Default to the Java interpreter
 			platform = api.Platforms.INTERPRETER_JAVA;
 		}
 
 		if(c instanceof CFunction) {
-			for(ExtensionTracker trk : EXTENSIONS.values()) {
+			functionLoop: for(ExtensionTracker trk : EXTENSIONS.values()) {
 				if(trk.functions.get(platform).containsKey(c.val())
 						&& trk.supportedPlatforms.get(c.val()).contains(platform)) {
-					return trk.functions.get(platform).get(c.val());
+					FunctionBase func = trk.functions.get(platform).get(c.val());
+					if(envs != null) {
+						api api = func.getClass().getAnnotation(api.class);
+						for(Class<? extends Environment.EnvironmentImpl> epl : api.environments()) {
+							if(!envs.contains(epl)) {
+								continue functionLoop;
+							}
+						}
+					}
+					return func;
 				}
 			}
 
@@ -722,12 +743,13 @@ public class ExtensionManager {
 		}
 	}
 
-	public static Set<FunctionBase> GetFunctions(api.Platforms platform) {
+	public static Set<FunctionBase> GetFunctions(api.Platforms platform,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs) {
 		if(platform == null) {
 			Set<FunctionBase> retn = new HashSet<>();
 
 			for(api.Platforms p : api.Platforms.values()) {
-				retn.addAll(GetFunctions(p));
+				retn.addAll(GetFunctions(p, envs));
 			}
 
 			return retn;
@@ -736,7 +758,17 @@ public class ExtensionManager {
 		Set<FunctionBase> retn = new HashSet<>();
 
 		for(ExtensionTracker trk : EXTENSIONS.values()) {
-			for(FunctionBase func : trk.functions.get(platform).values()) {
+			addList: for(FunctionBase func : trk.functions.get(platform).values()) {
+				// Functions which use a given environment are not valid if the current runtime does not contain
+				// that environment.
+				if(envs != null) {
+					api api = func.getClass().getAnnotation(api.class);
+					for(Class<? extends Environment.EnvironmentImpl> epl : api.environments()) {
+						if(!envs.contains(epl)) {
+							continue addList;
+						}
+					}
+				}
 				retn.add(func);
 			}
 		}

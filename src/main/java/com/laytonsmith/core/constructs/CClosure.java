@@ -3,11 +3,13 @@ package com.laytonsmith.core.constructs;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.annotations.typeof;
 import com.laytonsmith.core.ArgumentValidation;
-import com.laytonsmith.core.MSLog;
 import com.laytonsmith.core.Callable;
 import com.laytonsmith.core.MSVersion;
 import com.laytonsmith.core.MethodScriptCompiler;
 import com.laytonsmith.core.ParseTree;
+import com.laytonsmith.core.compiler.CompilerEnvironment;
+import com.laytonsmith.core.compiler.CompilerWarning;
+import com.laytonsmith.core.compiler.FileOptions;
 import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.environments.GlobalEnv;
 import com.laytonsmith.core.exceptions.CRE.AbstractCREException;
@@ -55,7 +57,10 @@ public class CClosure extends Construct implements Callable {
 		this.returnType = returnType;
 		for(String pName : names) {
 			if(pName.equals("@arguments")) {
-				MSLog.GetLogger().w(MSLog.Tags.COMPILER, "This closure overrides the builtin @arguments parameter", t);
+				env.getEnv(CompilerEnvironment.class)
+						.addCompilerWarning(node.getFileOptions(),
+								new CompilerWarning("This closure overrides the builtin @arguments parameter",
+								t, FileOptions.SuppressWarning.OverrideArguments));
 				break;
 			}
 		}
@@ -73,15 +78,24 @@ public class CClosure extends Construct implements Callable {
 			return;
 		}
 		if(node.getData() instanceof CFunction) {
-			b.append(((CFunction) node.getData()).val()).append("(");
-			for(int i = 0; i < node.numberOfChildren(); i++) {
-				condense(node.getChildAt(i), b);
-				if(i != node.numberOfChildren() - 1 && !((CFunction) node.getData()).val().equals("__autoconcat__")) {
-					b.append(",");
+			CFunction func = (CFunction) node.getData();
+			if(CFunction.IsFunction(func, com.laytonsmith.core.functions.Compiler.centry.class)) {
+				// As a special case, we serialize this one with the label: value notation. This prevents issues
+				// when deserializing it later.
+				// Labels add : themselves, so no need to add that.
+				b.append(node.getChildAt(0));
+				condense(node.getChildAt(1), b);
+			} else {
+				b.append(func.val()).append("(");
+				for(int i = 0; i < node.numberOfChildren(); i++) {
+					condense(node.getChildAt(i), b);
+					if(i != node.numberOfChildren() - 1 && !((CFunction) node.getData()).val().equals("__autoconcat__")) {
+						b.append(",");
+					}
 				}
+				b.append(")");
 			}
-			b.append(")");
-		} else if(node.getData().isInstanceOf(CString.class)) {
+		} else if(node.getData().isInstanceOf(CString.TYPE)) {
 			String data = ArgumentValidation.getString(node.getData(), node.getTarget());
 			// Convert: \ -> \\ and ' -> \'
 			b.append("'").append(data.replace("\\", "\\\\").replaceAll("\t", "\\\\t").replaceAll("\n", "\\\\n")
@@ -232,7 +246,7 @@ public class CClosure extends Construct implements Callable {
 			}
 
 			ParseTree newNode = new ParseTree(new CFunction("g", getTarget()), node.getFileOptions());
-			List<ParseTree> children = new ArrayList<ParseTree>();
+			List<ParseTree> children = new ArrayList<>();
 			children.add(node);
 			newNode.setChildren(children);
 			try {

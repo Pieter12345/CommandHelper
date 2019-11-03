@@ -190,7 +190,7 @@ public abstract class Construct implements Cloneable, Comparable<Construct>, Mix
 	}
 
 	private static Object json_encode0(Mixed c, Target t) throws MarshalException {
-		if(c.isInstanceOf(CString.class) || c instanceof Command) {
+		if(c.isInstanceOf(CString.TYPE) || c instanceof Command) {
 			return c.val();
 		} else if(c instanceof CVoid) {
 			return "";
@@ -202,7 +202,7 @@ public abstract class Construct implements Cloneable, Comparable<Construct>, Mix
 			return ((CBoolean) c).getBoolean();
 		} else if(c instanceof CNull) {
 			return null;
-		} else if(c.isInstanceOf(CArray.class)) {
+		} else if(c.isInstanceOf(CArray.TYPE)) {
 			CArray ca = (CArray) c;
 			if(!ca.inAssociativeMode()) {
 				List<Object> list = new ArrayList<Object>();
@@ -412,7 +412,7 @@ public abstract class Construct implements Cloneable, Comparable<Construct>, Mix
 			return Long.valueOf(((CInt) c).getInt());
 		} else if(c instanceof CDouble) {
 			return Double.valueOf(((CDouble) c).getDouble());
-		} else if(c.isInstanceOf(CArray.class)) {
+		} else if(c.isInstanceOf(CArray.TYPE)) {
 			CArray ca = (CArray) c;
 			if(ca.inAssociativeMode()) {
 				//SortedMap
@@ -505,7 +505,7 @@ public abstract class Construct implements Cloneable, Comparable<Construct>, Mix
 	 */
 	@Override
 	public final String getName() {
-		typeof t = this.getClass().getAnnotation(typeof.class);
+		typeof t = ClassDiscovery.GetClassAnnotation(this.getClass(), typeof.class);
 		return t.value();
 	}
 
@@ -576,11 +576,11 @@ public abstract class Construct implements Cloneable, Comparable<Construct>, Mix
 	}
 
 	public static boolean isInstanceof(Mixed that, CClassType type) {
-		return that.typeof().doesExtend(type);
+		return that.getClass().isAnnotationPresent(typeof.class) && that.typeof().doesExtend(type);
 	}
 
 	public static boolean isInstanceof(Mixed that, Class<? extends Mixed> type) {
-		if(that.getClass().getAnnotation(typeof.class) == null) {
+		if(ClassDiscovery.GetClassAnnotation(that.getClass(), typeof.class) == null) {
 			// This can happen in cases where we are in the middle of optimization.
 			// This can perhaps be improved in the future, when we store the return
 			// type with the CFunction, and we can at least handle those cases,
@@ -608,7 +608,7 @@ public abstract class Construct implements Cloneable, Comparable<Construct>, Mix
 	 */
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.getClass().getAnnotation(typeof.class), val());
+		return Objects.hash(ClassDiscovery.GetClassAnnotation(this.getClass(), typeof.class), val());
 	}
 
 

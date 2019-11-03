@@ -16,12 +16,15 @@ import com.laytonsmith.core.constructs.Target;
 import com.laytonsmith.core.environments.CommandHelperEnvironment;
 import com.laytonsmith.core.events.Driver;
 import com.laytonsmith.core.events.EventUtils;
+import com.laytonsmith.core.exceptions.CRE.CREPluginInternalException;
 import com.laytonsmith.core.exceptions.ConfigRuntimeException;
 import com.laytonsmith.core.functions.Commands;
 import com.laytonsmith.core.natives.interfaces.Mixed;
 import java.util.ArrayList;
 import java.util.List;
 import org.bukkit.command.Command;
+import org.bukkit.command.CommandException;
+import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.Plugin;
 
@@ -184,6 +187,15 @@ public class BukkitMCCommand implements MCCommand {
 	}
 
 	@Override
+	public List<String> tabComplete(MCCommandSender sender, String alias, String[] args) {
+		try {
+			return cmd.tabComplete((CommandSender) sender.getHandle(), alias, args, null);
+		} catch (CommandException ex) {
+			throw new CREPluginInternalException(ex.getMessage(), Target.UNKNOWN);
+		}
+	}
+
+	@Override
 	public int hashCode() {
 		return cmd.hashCode();
 	}
@@ -212,7 +224,7 @@ public class BukkitMCCommand implements MCCommand {
 				Mixed fret = closure.executeCallable(null, t, new CString(alias, t), new CString(sender.getName(), t), cargs,
 						new CArray(t) // reserved for an obgen style command array
 				);
-				if(fret.isInstanceOf(CArray.class)) {
+				if(fret.isInstanceOf(CArray.TYPE)) {
 					List<String> ret = new ArrayList<>();
 					if(((CArray) fret).inAssociativeMode()) {
 						for(Mixed key : ((CArray) fret).keySet()) {
@@ -253,7 +265,7 @@ public class BukkitMCCommand implements MCCommand {
 				Mixed fret = closure.executeCallable(null, t, new CString(label, t), new CString(sender.getName(), t), cargs,
 						new CArray(t) // reserved for an obgen style command array
 				);
-				if(fret.isInstanceOf(CBoolean.class)) {
+				if(fret.isInstanceOf(CBoolean.TYPE)) {
 					return ((CBoolean) fret).getBoolean();
 				}
 			} catch (ConfigRuntimeException cre) {

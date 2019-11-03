@@ -11,7 +11,7 @@ import com.laytonsmith.abstraction.enums.bukkit.BukkitMCProfession;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Villager;
 
-public class BukkitMCVillager extends BukkitMCAgeable implements MCVillager {
+public class BukkitMCVillager extends BukkitMCTrader implements MCVillager {
 
 	public BukkitMCVillager(Entity villager) {
 		super(villager);
@@ -37,12 +37,52 @@ public class BukkitMCVillager extends BukkitMCAgeable implements MCVillager {
 	}
 
 	@Override
-	public MCInventory getInventory() {
-		return new BukkitMCInventory(getHandle().getInventory());
+	public int getLevel() {
+		try {
+			return getHandle().getVillagerLevel();
+		} catch (NoSuchMethodError ex) {
+			// 1.13
+			return 1;
+		}
+	}
+
+	@Override
+	public void setLevel(int level) {
+		try {
+			getHandle().setVillagerLevel(level);
+		} catch (NoSuchMethodError ex) {
+			// 1.13
+		}
+	}
+
+	@Override
+	public int getExperience() {
+		try {
+			return getHandle().getVillagerExperience();
+		} catch (NoSuchMethodError ex) {
+			// 1.13
+			return 0;
+		}
+	}
+
+	@Override
+	public void setExperience(int exp) {
+		try {
+			getHandle().setVillagerExperience(exp);
+		} catch (NoSuchMethodError ex) {
+			// 1.13
+		}
 	}
 
 	@Override
 	public MCMerchant asMerchant() {
-		return new BukkitMCMerchant(getHandle(), getHandle().getProfession().name());
+		Villager villager = getHandle();
+		String title = villager.getCustomName() == null ? getHandle().getProfession().name() : villager.getCustomName();
+		return new BukkitMCMerchant(villager, title);
+	}
+
+	@Override
+	public MCInventory getInventory() {
+		return new BukkitMCInventory(getHandle().getInventory());
 	}
 }

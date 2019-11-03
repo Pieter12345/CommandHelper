@@ -30,6 +30,7 @@ import com.laytonsmith.core.constructs.Construct;
 import com.laytonsmith.core.constructs.IVariable;
 import com.laytonsmith.core.constructs.Target;
 import com.laytonsmith.core.constructs.Variable;
+import com.laytonsmith.core.environments.CommandHelperEnvironment;
 import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.environments.GlobalEnv;
 import com.laytonsmith.core.exceptions.CRE.CREPluginInternalException;
@@ -79,6 +80,8 @@ public class RandomTests {
 
 	MCPlayer fakePlayer;
 
+	Set<Class<? extends Environment.EnvironmentImpl>> envs = Environment.getDefaultEnvClasses();
+
 	@Before
 	public void setUp() throws Exception {
 		fakePlayer = StaticTest.GetOnlinePlayer();
@@ -124,7 +127,7 @@ public class RandomTests {
 		}
 		Set<String> classDocs = new TreeSet<>();
 
-		for(FunctionBase f : FunctionList.getFunctionList(null)) {
+		for(FunctionBase f : FunctionList.getFunctionList(null, envs)) {
 			try {
 				if(TESTED_FUNCTIONS.contains(f.getName())) {
 					continue;
@@ -193,7 +196,7 @@ public class RandomTests {
 		CArray c1 = C.Array(C.Void(), C.Void()).clone();
 		CBoolean c2 = C.Boolean(true).clone();
 		CDouble c4 = C.Double(1).clone();
-		CFunction c5 = new CFunction("", Target.UNKNOWN).clone();
+		CFunction c5 = new CFunction("__", Target.UNKNOWN).clone();
 		CInt c6 = C.Int(1).clone();
 		CNull c7 = C.Null().clone();
 		CString c8 = C.String("").clone();
@@ -324,6 +327,7 @@ public class RandomTests {
 	public void testGetValues() throws Exception {
 		try {
 			Environment env = Static.GenerateStandaloneEnvironment();
+			env = env.cloneAndAdd(new CommandHelperEnvironment());
 			GlobalEnv g = env.getEnv(GlobalEnv.class);
 			ConnectionMixinFactory.ConnectionMixinOptions options;
 			options = new ConnectionMixinFactory.ConnectionMixinOptions();

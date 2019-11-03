@@ -5,6 +5,7 @@ import com.laytonsmith.PureUtilities.DaemonManager;
 import com.laytonsmith.abstraction.AbstractConvertor;
 import com.laytonsmith.abstraction.ConvertorHelper;
 import com.laytonsmith.abstraction.Implementation;
+import com.laytonsmith.abstraction.MCAttributeModifier;
 import com.laytonsmith.abstraction.MCColor;
 import com.laytonsmith.abstraction.MCCommand;
 import com.laytonsmith.abstraction.MCCommandSender;
@@ -61,21 +62,25 @@ import com.laytonsmith.abstraction.bukkit.events.drivers.BukkitServerListener;
 import com.laytonsmith.abstraction.bukkit.events.drivers.BukkitVehicleListener;
 import com.laytonsmith.abstraction.bukkit.events.drivers.BukkitWeatherListener;
 import com.laytonsmith.abstraction.bukkit.events.drivers.BukkitWorldListener;
+import com.laytonsmith.abstraction.enums.MCAttribute;
 import com.laytonsmith.abstraction.enums.MCDyeColor;
+import com.laytonsmith.abstraction.enums.MCEquipmentSlot;
 import com.laytonsmith.abstraction.enums.MCPatternShape;
 import com.laytonsmith.abstraction.enums.MCPotionType;
 import com.laytonsmith.abstraction.enums.MCRecipeType;
 import com.laytonsmith.abstraction.enums.MCTone;
 import com.laytonsmith.abstraction.enums.MCVersion;
-import com.laytonsmith.abstraction.enums.bukkit.BukkitMCLegacyMaterial;
+import com.laytonsmith.abstraction.enums.bukkit.BukkitMCAttribute;
 import com.laytonsmith.abstraction.enums.bukkit.BukkitMCDyeColor;
 import com.laytonsmith.abstraction.enums.bukkit.BukkitMCEntityType;
+import com.laytonsmith.abstraction.enums.bukkit.BukkitMCEquipmentSlot;
+import com.laytonsmith.abstraction.enums.bukkit.BukkitMCLegacyMaterial;
 import com.laytonsmith.abstraction.enums.bukkit.BukkitMCPatternShape;
 import com.laytonsmith.abstraction.enums.bukkit.BukkitMCPotionType;
 import com.laytonsmith.annotations.convert;
 import com.laytonsmith.commandhelper.CommandHelperPlugin;
-import com.laytonsmith.core.MSLog;
 import com.laytonsmith.core.LogLevel;
+import com.laytonsmith.core.MSLog;
 import com.laytonsmith.core.Static;
 import com.laytonsmith.core.constructs.Target;
 import com.laytonsmith.core.environments.CommandHelperEnvironment;
@@ -88,6 +93,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Banner;
 import org.bukkit.block.Beacon;
 import org.bukkit.block.BlockState;
@@ -117,6 +123,8 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
 import org.bukkit.entity.Vehicle;
 import org.bukkit.entity.minecart.CommandMinecart;
+import org.bukkit.inventory.BlastingRecipe;
+import org.bukkit.inventory.CampfireRecipe;
 import org.bukkit.inventory.FurnaceRecipe;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -124,9 +132,12 @@ import org.bukkit.inventory.MerchantRecipe;
 import org.bukkit.inventory.Recipe;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.ShapelessRecipe;
+import org.bukkit.inventory.SmokingRecipe;
+import org.bukkit.inventory.StonecuttingRecipe;
 import org.bukkit.inventory.meta.BannerMeta;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.BookMeta;
+import org.bukkit.inventory.meta.CrossbowMeta;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.FireworkEffectMeta;
 import org.bukkit.inventory.meta.FireworkMeta;
@@ -145,6 +156,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -195,6 +207,16 @@ public class BukkitConvertor extends AbstractConvertor {
 	@Override
 	public MCServer GetServer() {
 		return BukkitMCServer.Get();
+	}
+
+	@Override
+	public MCMaterial[] GetMaterialValues() {
+		Material[] mats = Material.values();
+		MCMaterial[] ret = new MCMaterial[mats.length];
+		for(int i = 0; i < mats.length; i++) {
+			ret[i] = new BukkitMCMaterial(mats[i]);
+		}
+		return ret;
 	}
 
 	@Override
@@ -250,6 +272,20 @@ public class BukkitConvertor extends AbstractConvertor {
 	public MCPotionData GetPotionData(MCPotionType type, boolean extended, boolean upgraded) {
 		return new BukkitMCPotionData(new PotionData(
 				BukkitMCPotionType.getConvertor().getConcreteEnum(type), extended, upgraded));
+	}
+
+	@Override
+	public MCAttributeModifier GetAttributeModifier(MCAttribute attr, UUID id, String name, double amt, MCAttributeModifier.Operation op, MCEquipmentSlot slot) {
+		if(name == null) {
+			name = " "; // Spigot does not allow an empty name even though Minecraft and Paper allow it
+		}
+		if(id == null) {
+			id = UUID.randomUUID();
+		}
+		AttributeModifier mod = new AttributeModifier(id, name, amt,
+				BukkitMCAttributeModifier.Operation.getConvertor().getConcreteEnum(op),
+				BukkitMCEquipmentSlot.getConvertor().getConcreteEnum(slot));
+		return new BukkitMCAttributeModifier(BukkitMCAttribute.getConvertor().getConcreteEnum(attr), mod);
 	}
 
 	@Override
@@ -519,6 +555,9 @@ public class BukkitConvertor extends AbstractConvertor {
 		if(im instanceof TropicalFishBucketMeta) {
 			return new BukkitMCTropicalFishBucketMeta((TropicalFishBucketMeta) im);
 		}
+		if(Static.getServer().getMinecraftVersion().gte(MCVersion.MC1_14) && im instanceof CrossbowMeta) {
+			return new BukkitMCCrossbowMeta((CrossbowMeta) im);
+		}
 		return new BukkitMCItemMeta(im);
 	}
 
@@ -627,24 +666,48 @@ public class BukkitConvertor extends AbstractConvertor {
 			return new BukkitMCMerchantRecipe(new MerchantRecipe(is, Integer.MAX_VALUE));
 		}
 		NamespacedKey nskey = new NamespacedKey(CommandHelperPlugin.self, key);
-		switch(type) {
-			case FURNACE:
-				return new BukkitMCFurnaceRecipe(new FurnaceRecipe(nskey, is, Material.AIR, 0.0F, 200));
-			case SHAPED:
-				return new BukkitMCShapedRecipe(new ShapedRecipe(nskey, is));
-			case SHAPELESS:
-				return new BukkitMCShapelessRecipe(new ShapelessRecipe(nskey, is));
+		try {
+			switch(type) {
+				case BLASTING:
+					return new BukkitMCCookingRecipe(new BlastingRecipe(nskey, is, Material.AIR, 0.0F, 100), type);
+				case CAMPFIRE:
+					return new BukkitMCCookingRecipe(new CampfireRecipe(nskey, is, Material.AIR, 0.0F, 100), type);
+				case FURNACE:
+					return new BukkitMCFurnaceRecipe(new FurnaceRecipe(nskey, is, Material.AIR, 0.0F, 200));
+				case SHAPED:
+					return new BukkitMCShapedRecipe(new ShapedRecipe(nskey, is));
+				case SHAPELESS:
+					return new BukkitMCShapelessRecipe(new ShapelessRecipe(nskey, is));
+				case SMOKING:
+					return new BukkitMCCookingRecipe(new SmokingRecipe(nskey, is, Material.AIR, 0.0F, 200), type);
+				case STONECUTTING:
+					return new BukkitMCStonecuttingRecipe(new StonecuttingRecipe(nskey, is, Material.AIR));
+			}
+		} catch (NoClassDefFoundError ex) {
+			// doesn't exist on this version.
+			// eg. 1.14 recipe type on 1.13
 		}
-		return null;
+		throw new IllegalArgumentException("Server version does not support this recipe type: " + type.name());
 	}
 
 	@Override
 	public MCRecipe GetRecipe(MCRecipe unspecific) {
-		Recipe r = ((BukkitMCRecipe) unspecific).r;
+		Recipe r = (Recipe) unspecific.getHandle();
 		return BukkitGetRecipe(r);
 	}
 
 	public static MCRecipe BukkitGetRecipe(Recipe r) {
+		if(Static.getServer().getMinecraftVersion().gte(MCVersion.MC1_14)) {
+			if(r instanceof BlastingRecipe) {
+				return new BukkitMCCookingRecipe(r, MCRecipeType.BLASTING);
+			} else if(r instanceof CampfireRecipe) {
+				return new BukkitMCCookingRecipe(r, MCRecipeType.CAMPFIRE);
+			} else if(r instanceof SmokingRecipe) {
+				return new BukkitMCCookingRecipe(r, MCRecipeType.SMOKING);
+			} else if(r instanceof StonecuttingRecipe) {
+				return new BukkitMCStonecuttingRecipe((StonecuttingRecipe) r);
+			}
+		}
 		if(r instanceof ShapelessRecipe) {
 			return new BukkitMCShapelessRecipe((ShapelessRecipe) r);
 		} else if(r instanceof ShapedRecipe) {

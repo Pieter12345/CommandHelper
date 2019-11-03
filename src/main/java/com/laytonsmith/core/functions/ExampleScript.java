@@ -1,5 +1,6 @@
 package com.laytonsmith.core.functions;
 
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
 import com.laytonsmith.PureUtilities.Common.OSUtils;
 import com.laytonsmith.PureUtilities.Common.ReflectionUtils;
 import com.laytonsmith.PureUtilities.Common.StackTraceUtils;
@@ -7,7 +8,6 @@ import com.laytonsmith.abstraction.MCPlayer;
 import com.laytonsmith.abstraction.enums.MCChatColor;
 import com.laytonsmith.core.AliasCore;
 import com.laytonsmith.core.MethodScriptCompiler;
-import com.laytonsmith.core.MethodScriptComplete;
 import com.laytonsmith.core.ParseTree;
 import com.laytonsmith.core.Profiles;
 import com.laytonsmith.core.Script;
@@ -23,11 +23,11 @@ import com.laytonsmith.persistence.DataSourceException;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -55,9 +55,10 @@ public class ExampleScript {
 	 *
 	 * @param description
 	 * @param script
+	 * @throws com.laytonsmith.core.exceptions.ConfigCompileException
 	 */
 	public ExampleScript(String description, String script) throws ConfigCompileException {
-		this(description, script, null, false);
+		this(StackTraceUtils.getCallingClass(), description, script, null, false);
 	}
 
 	/**
@@ -70,8 +71,9 @@ public class ExampleScript {
 	 * @param intentionalCompileError
 	 * @throws ConfigCompileException
 	 */
-	public ExampleScript(String description, String script, boolean intentionalCompileError) throws ConfigCompileException {
-		this(description, script, null, intentionalCompileError);
+	public ExampleScript(String description, String script, boolean intentionalCompileError)
+			throws ConfigCompileException {
+		this(StackTraceUtils.getCallingClass(), description, script, null, intentionalCompileError);
 	}
 
 	/**
@@ -83,7 +85,7 @@ public class ExampleScript {
 	 * @throws ConfigCompileException
 	 */
 	public ExampleScript(String description, String script, String output) throws ConfigCompileException {
-		this(description, script, output, false);
+		this(StackTraceUtils.getCallingClass(), description, script, output, false);
 	}
 
 	/**
@@ -97,8 +99,10 @@ public class ExampleScript {
 	 * @throws ConfigCompileException
 	 */
 	@SuppressWarnings("unchecked")
-	private ExampleScript(String description, String script, String output, boolean intentionalCompileError) throws ConfigCompileException {
-		Class<?> c = StackTraceUtils.getCallingClass();
+	private ExampleScript(Class source, String description, String script, String output,
+			boolean intentionalCompileError)
+			throws ConfigCompileException {
+		Class<?> c = source;
 		if(Function.class.isAssignableFrom(c)) {
 			functionName = ReflectionUtils.instantiateUnsafe((Class<? extends Function>) c).getName();
 		}
@@ -106,10 +110,19 @@ public class ExampleScript {
 		this.originalScript = script;
 		String errorOutput = "Oops, something went wrong with this example.";
 		String consoleErrorOutput = Static.MCToANSIColors(MCChatColor.RED.toString() + "Unintentional compile error in "
-				+ c.getEnclosingClass().getSimpleName() + ":" + functionName + "(): \"" + description + "\"\n" + MCChatColor.PLAIN_WHITE);
+				+ c.getEnclosingClass().getSimpleName() + ":" + functionName + "(): \"" + description + "\"\n"
+				+ MCChatColor.PLAIN_WHITE);
 		try {
-			this.script = MethodScriptCompiler.compile(MethodScriptCompiler.lex(script,
-					new File((OSUtils.GetOS() == OSUtils.OS.WINDOWS ? "C:\\" : "/") + "Examples.ms"), true), null);
+			Environment env = Static.GenerateStandaloneEnvironment();
+			this.script = MethodScriptCompiler.compile(MethodScriptCompiler.lex(script, null,
+					new File((OSUtils.GetOS() == OSUtils.OS.WINDOWS ? "C:\\" : "/") + "Examples/" + functionName
+							+ ".ms"), true), env,
+					// We can't send null here, or it errors out, but we really do want to bypass the linking in
+					// this instance. Therefore, we just return a list of all environments. We can't run the examples
+					// that require non-default environments, but we can at least ensure that the script will generally
+					// compile in *some* environment.
+					new HashSet<>(ClassDiscovery.getDefaultInstance()
+									.loadClassesThatExtend(Environment.EnvironmentImpl.class)));
 			this.output = output;
 		} catch (ConfigCompileException e) {
 			if(intentionalCompileError) {
@@ -134,6 +147,8 @@ public class ExampleScript {
 					System.out.println(e.getMessage());
 				}
 			}
+		} catch (IOException | DataSourceException | URISyntaxException | Profiles.InvalidProfileException ex) {
+			ex.printStackTrace(System.err);
 		}
 		playerOutput = new StringBuilder();
 
@@ -194,26 +209,29 @@ public class ExampleScript {
 		Environment env;
 		try {
 			env = Static.GenerateStandaloneEnvironment();
+			// We must have CommandHelperEnvironment to generate the docs. This should be removed
+			// before CH/MS can be split, but that means a lot of examples probably need to change
+			// first. We use GenerateStandaloneEnvironment to use the standardized creation of
+			// GlobalEnv and CompilerEnv, but then add CHEnv as well.
+			env = env.cloneAndAdd(new CommandHelperEnvironment());
 		} catch (Profiles.InvalidProfileException ex) {
 			throw new RuntimeException(ex);
 		}
 		Class[] interfaces = new Class[]{
 			MCPlayer.class
 		};
-		MCPlayer p = (MCPlayer) Proxy.newProxyInstance(ExampleScript.class.getClassLoader(), interfaces, new InvocationHandler() {
-			@Override
-			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-				if(method.getName().equals("getName") || method.getName().equals("getDisplayName")) {
-					return "Player";
-				}
-				if(method.getName().equals("sendMessage")) {
-					playerOutput.append(args[0].toString()).append("\n");
-				}
-				if(method.getName().equals("isOnline")) {
-					return true;
-				}
-				return genericReturn(method.getReturnType());
+		MCPlayer p = (MCPlayer) Proxy.newProxyInstance(ExampleScript.class.getClassLoader(), interfaces,
+				(Object proxy, Method method, Object[] args) -> {
+			if(method.getName().equals("getName") || method.getName().equals("getDisplayName")) {
+				return "Player";
 			}
+			if(method.getName().equals("sendMessage")) {
+				playerOutput.append(args[0].toString()).append("\n");
+			}
+			if(method.getName().equals("isOnline")) {
+				return true;
+			}
+			return genericReturn(method.getReturnType());
 		});
 		// TODO: Remove this dependency. Make MCPlayer implement a generic "User" and make that
 		// part of the GlobalEnv.
@@ -223,15 +241,13 @@ public class ExampleScript {
 		try {
 			List<Variable> vars = new ArrayList<>();
 			try {
-				MethodScriptCompiler.execute(originalScript, new File("/" + functionName + ".ms"), true, env, new MethodScriptComplete() {
-
-					@Override
-					public void done(String output) {
-						if(output != null) {
-							finalOutput.append(output);
-						}
-					}
-				}, null, vars);
+				MethodScriptCompiler.execute(originalScript, new File("/" + functionName + ".ms"), true, env,
+						env.getEnvClasses(), (String output1) -> {
+							if(output1 != null) {
+								finalOutput.append(output1);
+							}
+						},
+						null, vars);
 			} catch (ConfigCompileException | ConfigCompileGroupException ex) {
 				// We already checked for compile errors, so this won't happen
 			}
@@ -245,7 +261,8 @@ public class ExampleScript {
 		String playerOut = playerOutput.toString().trim();
 		String finalOut = finalOutput.toString().trim();
 
-		String out = (playerOut.isEmpty() ? "" : playerOut) + (finalOut.isEmpty() || !playerOut.trim().isEmpty() ? "" : ":" + finalOut);
+		String out = (playerOut.isEmpty() ? "" : playerOut) + (finalOut.isEmpty() || !playerOut.trim().isEmpty()
+				? "" : ":" + finalOut);
 		if(thrown != null) {
 			out += thrown;
 		}

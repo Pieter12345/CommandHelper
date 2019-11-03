@@ -5,6 +5,7 @@ import com.laytonsmith.PureUtilities.Common.ReflectionUtils.ReflectionException;
 import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.annotations.MEnum;
+import com.laytonsmith.annotations.OperatorPreferred;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.annotations.core;
 import com.laytonsmith.annotations.noboilerplate;
@@ -69,6 +70,7 @@ public class StringHandling {
 	}
 
 	@api
+	@OperatorPreferred(".")
 	public static class concat extends AbstractFunction implements Optimizable {
 
 		@Override
@@ -116,7 +118,10 @@ public class StringHandling {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			OptimizationUtilities.pullUpLikeFunctions(children, this.getName());
 			for(ParseTree child : children) {
 				if(child.getData() instanceof CLabel) {
@@ -204,7 +209,10 @@ public class StringHandling {
 		public static final String STRING = new DataHandling._string().getName();
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			OptimizationUtilities.pullUpLikeFunctions(children, this.getName());
 			for(ParseTree child : children) {
 				if(child.getData() instanceof CLabel) {
@@ -410,7 +418,10 @@ public class StringHandling {
 		public ExampleScript[] examples() throws ConfigCompileException {
 			return new ExampleScript[]{
 				new ExampleScript("Demonstrates basic usage", "parse_args('This turns into 5 arguments')"),
-				new ExampleScript("Demonstrates usage with extra spaces", "parse_args('This   trims   extra   spaces')")
+				new ExampleScript("Demonstrates usage with extra spaces",
+						"parse_args('This   trims   extra   spaces')"),
+				new ExampleScript("With the advanced mode (escapes are also supported with \\, for instance \\'",
+						"parse_args('This supports \"quoted arguments\"', true)")
 			};
 		}
 
@@ -634,7 +645,7 @@ public class StringHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws CancelCommandException, ConfigRuntimeException {
-			if(args[0].isInstanceOf(Sizeable.class)) {
+			if(args[0].isInstanceOf(Sizeable.TYPE)) {
 				return new CInt(((Sizeable) args[0]).size(), t);
 			} else {
 				return new CInt(args[0].val().length(), t);
@@ -696,7 +707,7 @@ public class StringHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws CancelCommandException, ConfigRuntimeException {
-			if(!(args[0].isInstanceOf(CString.class))) {
+			if(!(args[0].isInstanceOf(CString.TYPE))) {
 				throw new CREFormatException(this.getName() + " expects a string as first argument, but type "
 						+ args[0].typeof() + " was found.", t);
 			}
@@ -759,7 +770,7 @@ public class StringHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment env, Mixed... args) throws CancelCommandException, ConfigRuntimeException {
-			if(!(args[0].isInstanceOf(CString.class))) {
+			if(!(args[0].isInstanceOf(CString.TYPE))) {
 				throw new CREFormatException(this.getName() + " expects a string as first argument, but type "
 						+ args[0].typeof() + " was found.", t);
 			}
@@ -1393,20 +1404,15 @@ public class StringHandling {
 
 			// Handle the formatting.
 			String formatString = args[1].val();
-			Object[] params = new Object[numArgs - 2];
 			List<FormatString> parsed;
 			try {
 				parsed = parse(formatString, t);
 			} catch (IllegalFormatException e) {
 				throw new CREFormatException(e.getMessage(), t);
 			}
-			if(requiredArgs(parsed) != numArgs - 2) {
-				throw new CREInsufficientArgumentsException("The specified format string: \"" + formatString + "\""
-						+ " expects " + requiredArgs(parsed) + " argument(s), but " + (numArgs - 2) + " were provided.", t);
-			}
 
 			List<Mixed> flattenedArgs = new ArrayList<>();
-			if(numArgs == 3 && args[2].isInstanceOf(CArray.class)) {
+			if(numArgs == 3 && args[2].isInstanceOf(CArray.TYPE)) {
 				if(((CArray) args[2]).inAssociativeMode()) {
 					throw new CRECastException("If the second argument to " + getName() + " is an array, it may not be associative.", t);
 				} else {
@@ -1419,7 +1425,15 @@ public class StringHandling {
 					flattenedArgs.add(args[i]);
 				}
 			}
+
+			if(requiredArgs(parsed) != flattenedArgs.size()) {
+				throw new CREInsufficientArgumentsException("The specified format string: \"" + formatString + "\""
+						+ " expects " + requiredArgs(parsed) + " argument(s),"
+						+ " but " + flattenedArgs.size() + " were provided.", t);
+			}
+
 			//Now figure out how to cast things, now that we know our argument numbers will match up
+			Object[] params = new Object[flattenedArgs.size()];
 			for(int i = 0; i < requiredArgs(parsed); i++) {
 				Mixed arg = flattenedArgs.get(i);
 				FormatString fs = parsed.get(i);
@@ -1579,7 +1593,10 @@ public class StringHandling {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 2) {
 				throw new ConfigCompileException(getName() + " expects 2 or more argument", t);
 			}
@@ -1847,12 +1864,15 @@ public class StringHandling {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 1) {
 				throw new ConfigCompileException(getName() + " expects at least 1 argument", t);
 			}
 			children.add(0, new ParseTree(CNull.NULL, fileOptions)); // Add a default locale to the arguments.
-			return super.optimizeDynamic(t, env, children, fileOptions);
+			return super.optimizeDynamic(t, env, envs, children, fileOptions);
 		}
 
 		@Override
@@ -2399,7 +2419,7 @@ public class StringHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CArray.class)) {
+			if(args[0].isInstanceOf(CArray.TYPE)) {
 				CArray array = Static.getArray(args[0], t);
 				return new CSecureString(array, t);
 			} else {
@@ -2477,10 +2497,10 @@ public class StringHandling {
 
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CSecureString.class)) {
+			if(args[0].isInstanceOf(CSecureString.TYPE)) {
 				CSecureString secure = ArgumentValidation.getObject(args[0], t, CSecureString.class);
 				return secure.getDecryptedCharCArray();
-			} else if(args[0].isInstanceOf(CString.class)) {
+			} else if(args[0].isInstanceOf(CString.TYPE)) {
 				CArray array = new CArray(Target.UNKNOWN, args[0].val().length());
 				for(char c : args[0].val().toCharArray()) {
 					array.push(new CString(c, t), t);
@@ -2632,8 +2652,8 @@ public class StringHandling {
 		public ExampleScript[] examples() throws ConfigCompileException {
 			return new ExampleScript[]{
 				new ExampleScript("Typical usage", "uuid()", "46fa3d0e-0178-4384-8a9c-2f0df1cada2b"),
-				new ExampleScript("Explicit RANDOM uuid", "uuid(RANDOM)", "fb9f9a7b-76c2-40e3-ba20-8ab23553b9d6"),
-				new ExampleScript("NIL uuid", "uuid(NIL)")
+				new ExampleScript("Explicit RANDOM uuid", "uuid('RANDOM')", "fb9f9a7b-76c2-40e3-ba20-8ab23553b9d6"),
+				new ExampleScript("NIL uuid", "uuid('NIL')")
 			};
 		}
 	}

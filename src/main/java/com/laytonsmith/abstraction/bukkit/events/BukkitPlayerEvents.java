@@ -25,18 +25,23 @@ import com.laytonsmith.abstraction.bukkit.entities.BukkitMCPlayer;
 import com.laytonsmith.abstraction.bukkit.events.BukkitEntityEvents.BukkitMCEntityDeathEvent;
 import com.laytonsmith.abstraction.entities.MCFishHook;
 import com.laytonsmith.abstraction.enums.MCAction;
+import com.laytonsmith.abstraction.enums.MCEnterBedResult;
 import com.laytonsmith.abstraction.enums.MCEquipmentSlot;
 import com.laytonsmith.abstraction.enums.MCFishingState;
 import com.laytonsmith.abstraction.enums.MCGameMode;
+import com.laytonsmith.abstraction.enums.MCResourcePackStatus;
 import com.laytonsmith.abstraction.enums.MCTeleportCause;
 import com.laytonsmith.abstraction.enums.bukkit.BukkitMCAction;
+import com.laytonsmith.abstraction.enums.bukkit.BukkitMCEnterBedResult;
 import com.laytonsmith.abstraction.enums.bukkit.BukkitMCFishingState;
 import com.laytonsmith.abstraction.enums.bukkit.BukkitMCGameMode;
+import com.laytonsmith.abstraction.enums.bukkit.BukkitMCResourcePackStatus;
 import com.laytonsmith.abstraction.enums.bukkit.BukkitMCTeleportCause;
 import com.laytonsmith.abstraction.events.MCExpChangeEvent;
 import com.laytonsmith.abstraction.events.MCFoodLevelChangeEvent;
 import com.laytonsmith.abstraction.events.MCGamemodeChangeEvent;
-import com.laytonsmith.abstraction.events.MCPlayerBedEvent;
+import com.laytonsmith.abstraction.events.MCPlayerEnterBedEvent;
+import com.laytonsmith.abstraction.events.MCPlayerLeaveBedEvent;
 import com.laytonsmith.abstraction.events.MCPlayerChatEvent;
 import com.laytonsmith.abstraction.events.MCPlayerCommandEvent;
 import com.laytonsmith.abstraction.events.MCPlayerDeathEvent;
@@ -51,6 +56,7 @@ import com.laytonsmith.abstraction.events.MCPlayerLoginEvent;
 import com.laytonsmith.abstraction.events.MCPlayerMoveEvent;
 import com.laytonsmith.abstraction.events.MCPlayerPortalEvent;
 import com.laytonsmith.abstraction.events.MCPlayerQuitEvent;
+import com.laytonsmith.abstraction.events.MCPlayerResourcePackEvent;
 import com.laytonsmith.abstraction.events.MCPlayerRespawnEvent;
 import com.laytonsmith.abstraction.events.MCPlayerTeleportEvent;
 import com.laytonsmith.abstraction.events.MCPlayerToggleFlightEvent;
@@ -84,6 +90,7 @@ import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerResourcePackStatusEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
@@ -188,26 +195,38 @@ public class BukkitPlayerEvents {
 		}
 	}
 
-	public static class BukkitMCPlayerBedEvent extends BukkitMCPlayerEvent implements MCPlayerBedEvent {
+	public static class BukkitMCPlayerEnterBedEvent extends BukkitMCPlayerEvent implements MCPlayerEnterBedEvent {
 
-		MCBlock block;
-		PlayerEvent event;
+		PlayerBedEnterEvent event;
 
-		public BukkitMCPlayerBedEvent(PlayerBedEnterEvent event) {
+		public BukkitMCPlayerEnterBedEvent(PlayerBedEnterEvent event) {
 			super(event);
 			this.event = event;
-			this.block = new BukkitMCBlock(event.getBed());
-		}
-
-		public BukkitMCPlayerBedEvent(PlayerBedLeaveEvent event) {
-			super(event);
-			this.event = event;
-			this.block = new BukkitMCBlock(event.getBed());
 		}
 
 		@Override
 		public MCBlock getBed() {
-			return block;
+			return new BukkitMCBlock(event.getBed());
+		}
+
+		@Override
+		public MCEnterBedResult getResult() {
+			return BukkitMCEnterBedResult.getConvertor().getAbstractedEnum(event.getBedEnterResult());
+		}
+	}
+
+	public static class BukkitMCPlayerLeaveBedEvent extends BukkitMCPlayerEvent implements MCPlayerLeaveBedEvent {
+
+		PlayerBedLeaveEvent event;
+
+		public BukkitMCPlayerLeaveBedEvent(PlayerBedLeaveEvent event) {
+			super(event);
+			this.event = event;
+		}
+
+		@Override
+		public MCBlock getBed() {
+			return new BukkitMCBlock(event.getBed());
 		}
 	}
 
@@ -929,6 +948,22 @@ public class BukkitPlayerEvents {
 		@Override
 		public void setCancelled(boolean bln) {
 			ptse.setCancelled(bln);
+		}
+	}
+
+	@abstraction(type = Implementation.Type.BUKKIT)
+	public static class BukkitMCPlayerResourcePackEvent extends BukkitMCPlayerEvent implements MCPlayerResourcePackEvent {
+
+		PlayerResourcePackStatusEvent e;
+
+		public BukkitMCPlayerResourcePackEvent(PlayerResourcePackStatusEvent event) {
+			super(event);
+			this.e = event;
+		}
+
+		@Override
+		public MCResourcePackStatus getStatus() {
+			return BukkitMCResourcePackStatus.getConvertor().getAbstractedEnum(this.e.getStatus());
 		}
 	}
 

@@ -3,8 +3,10 @@ package com.laytonsmith.core;
 import com.laytonsmith.abstraction.MCPlayer;
 import com.laytonsmith.core.compiler.OptimizationUtilities;
 import com.laytonsmith.core.constructs.Target;
+import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.exceptions.CRE.CRECastException;
 import com.laytonsmith.core.exceptions.ConfigCompileException;
+import com.laytonsmith.core.exceptions.ConfigCompileGroupException;
 import com.laytonsmith.core.functions.Exceptions;
 import com.laytonsmith.testing.StaticTest;
 import org.junit.BeforeClass;
@@ -13,6 +15,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import org.junit.Before;
 import static com.laytonsmith.testing.StaticTest.SRun;
+import java.util.Set;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
@@ -24,13 +27,15 @@ import static org.mockito.Mockito.eq;
  */
 public class NewExceptionHandlingTest {
 
+	static Set<Class<? extends Environment.EnvironmentImpl>> envs = Environment.getDefaultEnvClasses();
+
 	@BeforeClass
 	public static void setUpClass() {
 		StaticTest.InstallFakeServerFrontend();
 	}
 
 	public String optimize(String script) throws Exception {
-		return OptimizationUtilities.optimize(script, null);
+		return OptimizationUtilities.optimize(script, null, envs, null);
 	}
 
 	MCPlayer fakePlayer;
@@ -195,32 +200,32 @@ public class NewExceptionHandlingTest {
 		verify(fakePlayer).sendMessage("run");
 	}
 
-	@Test(expected = ConfigCompileException.class)
+	@Test(expected = ConfigCompileGroupException.class)
 	public void testFinallyMustBeLast() throws Exception {
 		SRun("try { } finally { } catch (Exception @e){ }", fakePlayer);
 	}
 
-	@Test(expected = ConfigCompileException.class)
+	@Test(expected = ConfigCompileGroupException.class)
 	public void testFinallyErrors() throws Exception {
 		SRun("finally { }", fakePlayer);
 	}
 
-	@Test(expected = ConfigCompileException.class)
+	@Test(expected = ConfigCompileGroupException.class)
 	public void testCatchErrors() throws Exception {
 		SRun("catch (Exception @e) { }", fakePlayer);
 	}
 
-	@Test(expected = ConfigCompileException.class)
+	@Test(expected = ConfigCompileGroupException.class)
 	public void testCatchErrors2() throws Exception {
 		SRun("catch { }", fakePlayer);
 	}
 
-	@Test(expected = ConfigCompileException.class)
+	@Test(expected = ConfigCompileGroupException.class)
 	public void testCatchOnlyAllows1Parameter1() throws Exception {
 		SRun("try { } catch (Exception @e, IOException @b) { }", fakePlayer);
 	}
 
-	@Test(expected = ConfigCompileException.class)
+	@Test(expected = ConfigCompileGroupException.class)
 	public void testCatchOnlyAllows1Parameter2() throws Exception {
 		SRun("catch (){ }", fakePlayer);
 	}

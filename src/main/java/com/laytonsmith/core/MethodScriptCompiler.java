@@ -1,15 +1,19 @@
 package com.laytonsmith.core;
 
 import com.laytonsmith.PureUtilities.Common.StringUtils;
+import com.laytonsmith.annotations.OperatorPreferred;
 import com.laytonsmith.annotations.breakable;
 import com.laytonsmith.annotations.nolinking;
 import com.laytonsmith.annotations.unbreakable;
 import com.laytonsmith.core.Optimizable.OptimizationOption;
 import com.laytonsmith.core.compiler.BranchStatement;
+import com.laytonsmith.core.compiler.CompilerEnvironment;
+import com.laytonsmith.core.compiler.CompilerWarning;
 import com.laytonsmith.core.compiler.FileOptions;
 import com.laytonsmith.core.compiler.KeywordList;
 import com.laytonsmith.core.compiler.TokenStream;
 import com.laytonsmith.core.compiler.keywords.ObjectDefinitionKeyword;
+import com.laytonsmith.core.constructs.CBareString;
 import com.laytonsmith.core.constructs.CDecimal;
 import com.laytonsmith.core.constructs.CDouble;
 import com.laytonsmith.core.constructs.CFunction;
@@ -48,7 +52,10 @@ import com.laytonsmith.core.functions.FunctionBase;
 import com.laytonsmith.core.functions.FunctionList;
 import com.laytonsmith.core.functions.IncludeCache;
 import com.laytonsmith.core.natives.interfaces.Mixed;
+import com.laytonsmith.persistence.DataSourceException;
 import java.io.File;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -62,6 +69,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -91,14 +99,16 @@ public final class MethodScriptCompiler {
 	 * @return A stream of tokens
 	 * @throws ConfigCompileException If compilation fails due to bad syntax
 	 */
-	public static TokenStream lex(String script, File file, boolean inPureMScript) throws ConfigCompileException {
-		return lex(script, file, inPureMScript, false);
+	public static TokenStream lex(String script, Environment env, File file, boolean inPureMScript)
+			throws ConfigCompileException {
+		return lex(script, env, file, inPureMScript, false);
 	}
 
 	/**
 	 * Lexes the script, and turns it into a token stream. This looks through the script character by character.
 	 *
 	 * @param script The script to lex
+	 * @param env
 	 * @param file The file this script came from, or potentially null if the code is from a dynamic source
 	 * @param inPureMScript If the script is in pure MethodScript, this should be true. Pure MethodScript is defined as
 	 * code that doesn't have command alias wrappers.
@@ -113,7 +123,16 @@ public final class MethodScriptCompiler {
 	 * @return A stream of tokens
 	 * @throws ConfigCompileException If compilation fails due to bad syntax
 	 */
-	public static TokenStream lex(String script, File file, boolean inPureMScript, boolean saveAllTokens) throws ConfigCompileException {
+	public static TokenStream lex(String script, Environment env, File file,
+			boolean inPureMScript, boolean saveAllTokens) throws ConfigCompileException {
+		if(env == null) {
+			// We MUST have a CompilerEnvironment, but it doesn't need to be used, but we have to create it at this
+			// stage.
+			env = Environment.createEnvironment(new CompilerEnvironment());
+		}
+		if(!env.hasEnv(CompilerEnvironment.class)) {
+			env = env.cloneAndAdd(new CompilerEnvironment());
+		}
 		if(script.isEmpty()) {
 			return new TokenStream(new LinkedList<>(), "");
 		}
@@ -864,7 +883,7 @@ public final class MethodScriptCompiler {
 				} else if(IVAR_PATTERN.matcher(t.val()).matches()) {
 					t.type = TType.IVARIABLE;
 				} else if(t.val().charAt(0) == '@') {
-					throw new ConfigCompileException("IVariables must match the regex: " + IVAR_PATTERN, target);
+					throw new ConfigCompileException("IVariables must match the regex: " + IVAR_PATTERN, t.getTarget());
 				} else if(keywords.contains(t.val())) {
 					t.type = TType.KEYWORD;
 				} else if(t.val().matches("[\t ]*")) {
@@ -920,9 +939,9 @@ public final class MethodScriptCompiler {
 			String fileName = tokenList.getFileOptions().getName();
 			if(!fileName.isEmpty()) {
 				if(!file.getAbsolutePath().replace("\\", "/").endsWith(fileName.replace("\\", "/"))) {
-					MSLog.GetLogger().w(MSLog.Tags.COMPILER, file + " has the wrong file name in the file options ("
-							+ fileName + ")",
-							new Target(0, file, 0));
+					CompilerWarning warning = new CompilerWarning(file + " has the wrong file name in the file options ("
+							+ fileName + ")", new Target(0, file, 0), null);
+					env.getEnv(CompilerEnvironment.class).addCompilerWarning(null, warning);
 				}
 			}
 		}
@@ -958,10 +977,12 @@ public final class MethodScriptCompiler {
 	 * This function breaks the token stream into parts, separating the aliases/MethodScript from the command triggers
 	 *
 	 * @param tokenStream
+	 * @param envs
 	 * @return
 	 * @throws ConfigCompileException
 	 */
-	public static List<Script> preprocess(TokenStream tokenStream) throws ConfigCompileException {
+	public static List<Script> preprocess(TokenStream tokenStream,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs) throws ConfigCompileException {
 		if(tokenStream == null || tokenStream.isEmpty()) {
 			return new ArrayList<>();
 		}
@@ -1142,7 +1163,7 @@ public final class MethodScriptCompiler {
 				}
 
 				// Create a new script from the command descriptor (left) and code (right) and add it to the list.
-				Script s = new Script(left, right, null, tokenStream.getFileOptions());
+				Script s = new Script(left, right, null, envs, tokenStream.getFileOptions());
 				scripts.add(s);
 
 				// Create new left and right array for the next script.
@@ -1158,9 +1179,12 @@ public final class MethodScriptCompiler {
 	/**
 	 * Compiles the token stream into a valid ParseTree. This also includes optimization and reduction.
 	 *
-	 * @param stream The token stream, as generated by {@link #lex(String, File, boolean) lex}
+	 * @param stream The token stream, as generated by {@link #lex(String, Environment, File, boolean) lex}
 	 * @param environment If an environment is already set up, it can be passed in here. The code will tolerate a null
-	 * value, but if present, should be passed in.
+	 * value, but if present, should be passed in. If the value is null, a standalone environment will be generated
+	 * and used.
+	 * @param envs The environments that are going to be present at runtime. Even if the {@code environment} parameter
+	 * is null, this still must be non-null and populated with one or more values.
 	 * @return A fully compiled, optimized, and reduced parse tree. If {@code stream} is null or empty, null is
 	 * returned.
 	 * @throws ConfigCompileException If the script contains syntax errors. Additionally, during optimization, certain
@@ -1169,8 +1193,23 @@ public final class MethodScriptCompiler {
 	 * @throws com.laytonsmith.core.exceptions.ConfigCompileGroupException A ConfigCompileGroupException is just
 	 * a collection of single {@link ConfigCompileException}s.
 	 */
-	public static ParseTree compile(TokenStream stream, Environment environment) throws ConfigCompileException,
+	public static ParseTree compile(TokenStream stream, Environment environment,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs) throws ConfigCompileException,
 			ConfigCompileGroupException {
+		Objects.requireNonNull(envs, () -> "envs parameter must not be null");
+		try {
+			if(environment == null) {
+					// We MUST have a CompilerEnvironment. It doesn't need to be used, but we have to create it at
+					// this stage.
+					environment = Static.GenerateStandaloneEnvironment(false);
+			}
+			if(!environment.hasEnv(CompilerEnvironment.class)) {
+				Environment e = Static.GenerateStandaloneEnvironment(false);
+				environment = environment.cloneAndAdd(e.getEnv(CompilerEnvironment.class));
+			}
+		} catch (IOException | DataSourceException | URISyntaxException | Profiles.InvalidProfileException ex) {
+			throw new RuntimeException(ex);
+		}
 		Set<ConfigCompileException> compilerErrors = new HashSet<>();
 		if(stream == null || stream.isEmpty()) {
 			return null;
@@ -1323,7 +1362,7 @@ public final class MethodScriptCompiler {
 				int array = arrayStack.pop().get();
 				//index is the location of the first node with the index
 				int index = array + 1;
-				if(!tree.hasChildren() || array == -1) {
+				if(array == -1 || array >= tree.numberOfChildren()) {
 					throw new ConfigCompileException("Brackets are illegal here", t.target);
 				}
 
@@ -1385,6 +1424,23 @@ public final class MethodScriptCompiler {
 
 			if(t.type.equals(TType.FUNC_NAME)) {
 				CFunction func = new CFunction(t.val(), t.target);
+				{
+					// Check for code upgrade warning
+					try {
+						OperatorPreferred opPref = func.getFunction().getClass().getAnnotation(OperatorPreferred.class);
+						if(opPref != null) {
+							String msg = "The operator \"" + opPref.value() + "\" is preferred over the functional"
+									+ " usage.";
+							CompilerWarning warning = new CompilerWarning(msg, t.target,
+									FileOptions.SuppressWarning.CodeUpgradeNotices);
+							environment.getEnv(CompilerEnvironment.class).addCodeUpgradeNotice(fileOptions, warning);
+						}
+					} catch (ConfigCompileException ex) {
+						// The function doesn't exist. It may be a compile error later (or maybe not, if it's
+						// preprocessed out) but we don't want to handle that at this point either way. In any
+						// case, we can't find it, so don't report it.
+					}
+				}
 				ParseTree f = new ParseTree(func, fileOptions);
 				tree.addChild(f);
 				constructCount.push(new AtomicInteger(0));
@@ -1704,13 +1760,13 @@ public final class MethodScriptCompiler {
 
 		Stack<List<Procedure>> procs = new Stack<>();
 		procs.add(new ArrayList<>());
-		processKeywords(tree);
-		optimizeAutoconcats(tree, environment, compilerErrors);
-		optimize(tree, environment, procs, compilerErrors);
-		link(tree, compilerErrors);
+		processKeywords(tree, compilerErrors);
+		optimizeAutoconcats(tree, environment, envs, compilerErrors);
+		checkLinearComponents(tree, environment, compilerErrors);
+		optimize(tree, environment, envs, procs, compilerErrors);
+		link(tree, compilerErrors, envs);
 		checkLabels(tree, compilerErrors);
 		checkBreaks(tree, compilerErrors);
-		eliminateDeadCode(tree);
 		if(!compilerErrors.isEmpty()) {
 			if(compilerErrors.size() == 1) {
 				// Just throw the one CCE
@@ -1721,9 +1777,27 @@ public final class MethodScriptCompiler {
 				throw new ConfigCompileGroupException(compilerErrors);
 			}
 		}
+		eliminateDeadCode(tree, environment, envs);
 		parents.pop();
 		tree = parents.pop();
 		return tree;
+	}
+
+	private static void checkLinearComponents(ParseTree tree, Environment env,
+			Set<ConfigCompileException> compilerErrors) {
+		for(ParseTree m : tree.getAllNodes()) {
+			if(m.getData().isInstanceOf(CBareString.TYPE)) {
+				if(m.getFileOptions().isStrict()) {
+					compilerErrors.add(new ConfigCompileException("Use of bare strings in strict mode is not"
+							+ " allowed.", m.getTarget()));
+				} else {
+					env.getEnv(CompilerEnvironment.class).addCompilerWarning(m.getFileOptions(),
+							new CompilerWarning("Use of bare string", m.getTarget(),
+									FileOptions.SuppressWarning.UseBareStrings));
+					return; // for now, only one warning per file
+				}
+			}
+		}
 	}
 
 	/**
@@ -1769,8 +1843,8 @@ public final class MethodScriptCompiler {
 			//Don't care about these
 			return;
 		}
-		if(tree.getData().val().startsWith("_")) {
-			//It's a proc. We need to recurse, but not check this "function"
+		if(!((CFunction) tree.getData()).hasFunction()) {
+			//We need to recurse, but this is not expected to be a function
 			for(ParseTree child : tree.getChildren()) {
 				checkBreaks0(child, currentLoops, lastUnbreakable, compilerErrors);
 			}
@@ -1954,15 +2028,18 @@ public final class MethodScriptCompiler {
 	 * @param root
 	 * @param compilerExceptions
 	 */
-	private static void optimizeAutoconcats(ParseTree root, Environment env, Set<ConfigCompileException> compilerExceptions) {
+	private static void optimizeAutoconcats(ParseTree root, Environment env,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs,
+			Set<ConfigCompileException> compilerExceptions) {
 		for(ParseTree child : root.getChildren()) {
 			if(child.hasChildren()) {
-				optimizeAutoconcats(child, env, compilerExceptions);
+				optimizeAutoconcats(child, env, envs, compilerExceptions);
 			}
 		}
 		if(root.getData() instanceof CFunction && root.getData().val().equals(__autoconcat__)) {
 			try {
-				ParseTree ret = ((Compiler.__autoconcat__) ((CFunction) root.getData()).getFunction()).optimizeDynamic(root.getTarget(), env, root.getChildren(), root.getFileOptions());
+				ParseTree ret = ((Compiler.__autoconcat__) ((CFunction) root.getData()).getFunction())
+						.optimizeDynamic(root.getTarget(), env, envs, root.getChildren(), root.getFileOptions());
 				root.setData(ret.getData());
 				root.setChildren(ret.getChildren());
 			} catch (ConfigCompileException ex) {
@@ -1999,10 +2076,11 @@ public final class MethodScriptCompiler {
 	 *
 	 * @param tree
 	 */
-	private static void link(ParseTree tree, Set<ConfigCompileException> compilerErrors) {
+	private static void link(ParseTree tree, Set<ConfigCompileException> compilerErrors,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs) {
 		FunctionBase treeFunction = null;
 		try {
-			treeFunction = FunctionList.getFunction((CFunction) tree.getData());
+			treeFunction = FunctionList.getFunction((CFunction) tree.getData(), null);
 			if(treeFunction.getClass().getAnnotation(nolinking.class) != null) {
 				//Don't link children of a nolinking function.
 				return;
@@ -2024,6 +2102,8 @@ public final class MethodScriptCompiler {
 				if(op.optimizationOptions().contains(OptimizationOption.CUSTOM_LINK)) {
 					try {
 						op.link(tree.getData().getTarget(), tree.getChildren());
+					} catch (ConfigRuntimeException ex) {
+						compilerErrors.add(new ConfigCompileException(ex));
 					} catch (ConfigCompileException ex) {
 						compilerErrors.add(ex);
 					}
@@ -2033,17 +2113,17 @@ public final class MethodScriptCompiler {
 		// Walk the children
 		for(ParseTree child : tree.getChildren()) {
 			if(child.getData() instanceof CFunction) {
-				if(child.getData().val().charAt(0) != '_' || child.getData().val().charAt(1) == '_') {
+				if(((CFunction) child.getData()).hasFunction()) {
 					// This will throw an exception if the function doesn't exist.
 					try {
-						FunctionList.getFunction((CFunction) child.getData());
+						FunctionList.getFunction((CFunction) child.getData(), envs);
 					} catch (ConfigCompileException ex) {
 						compilerErrors.add(ex);
 					} catch (ClassCastException ex) {
 						throw new RuntimeException(ex);
 					}
 				}
-				link(child, compilerErrors);
+				link(child, compilerErrors, envs);
 			}
 		}
 	}
@@ -2063,7 +2143,9 @@ public final class MethodScriptCompiler {
 	 * @param tree
 	 * @return
 	 */
-	private static void optimize(ParseTree tree, Environment env, Stack<List<Procedure>> procs, Set<ConfigCompileException> compilerErrors) {
+	private static void optimize(ParseTree tree, Environment env,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs, Stack<List<Procedure>> procs,
+			Set<ConfigCompileException> compilerErrors) {
 		if(tree.isOptimized()) {
 			return; //Don't need to re-run this
 		}
@@ -2082,7 +2164,7 @@ public final class MethodScriptCompiler {
 		CFunction cFunction = (CFunction) tree.getData();
 		Function func;
 		try {
-			func = (Function) FunctionList.getFunction(cFunction);
+			func = (Function) FunctionList.getFunction(cFunction, envs);
 		} catch (ConfigCompileException e) {
 			func = null;
 		}
@@ -2102,13 +2184,14 @@ public final class MethodScriptCompiler {
 		}
 
 		List<ParseTree> children = tree.getChildren();
-		if(func instanceof Optimizable && ((Optimizable) func).optimizationOptions().contains(OptimizationOption.PRIORITY_OPTIMIZATION)) {
+		if(func instanceof Optimizable && ((Optimizable) func).optimizationOptions()
+				.contains(OptimizationOption.PRIORITY_OPTIMIZATION)) {
 			// This is a priority optimization function, meaning it needs to be optimized before its children are.
 			// This is required when optimization of the children could cause different internal behavior, for instance
 			// if this function is expecting the precense of soem code element, but the child gets optimized out, this
 			// would cause an error, even though the user did in fact provide code in that section.
 			try {
-				((Optimizable) func).optimizeDynamic(tree.getTarget(), env, children, tree.getFileOptions());
+				((Optimizable) func).optimizeDynamic(tree.getTarget(), env, envs, children, tree.getFileOptions());
 			} catch (ConfigCompileException ex) {
 				// If an error occurs, we will skip the rest of this element
 				compilerErrors.add(ex);
@@ -2123,7 +2206,7 @@ public final class MethodScriptCompiler {
 		boolean hasIVars = false;
 		for(ParseTree node : children) {
 			if(node.getData() instanceof CFunction) {
-				optimize(node, env, procs, compilerErrors);
+				optimize(node, env, envs, procs, compilerErrors);
 			}
 
 			if(node.getData() instanceof Construct) {
@@ -2198,9 +2281,14 @@ public final class MethodScriptCompiler {
 //				} catch (IOException | DataSourceException | URISyntaxException | Profiles.InvalidProfileException e) {
 //					//
 //				}
-				env.getEnv(GlobalEnv.class).SetFlag("no-check-undefined", true);
+				if(env.hasEnv(GlobalEnv.class)) {
+					// For testing, we frequently set this to null, so check this first.
+					env.getEnv(GlobalEnv.class).SetFlag("no-check-undefined", true);
+				}
 				Procedure myProc = DataHandling.proc.getProcedure(tree.getTarget(), env, fakeScript, children.toArray(new ParseTree[children.size()]));
-				env.getEnv(GlobalEnv.class).ClearFlag("no-check-undefined");
+				if(env.hasEnv(GlobalEnv.class)) {
+					env.getEnv(GlobalEnv.class).ClearFlag("no-check-undefined");
+				}
 				procs.peek().add(myProc); //Yep. So, we can move on with our lives now, and if it's used later, it could possibly be static.
 			} catch (ConfigRuntimeException e) {
 				//Well, they have an error in there somewhere
@@ -2222,10 +2310,13 @@ public final class MethodScriptCompiler {
 			try {
 				ParseTree tempNode;
 				try {
-					tempNode = ((Optimizable) func).optimizeDynamic(tree.getData().getTarget(), env, tree.getChildren(), tree.getFileOptions());
+					tempNode = ((Optimizable) func).optimizeDynamic(tree.getData().getTarget(), env, envs,
+							tree.getChildren(), tree.getFileOptions());
 				} catch (ConfigRuntimeException e) {
 					//Turn it into a compile exception, then rethrow
 					throw new ConfigCompileException(e);
+				} catch (Error t) {
+					throw new Error("The linked Error had a code target on or around " + tree.getData().getTarget(), t);
 				}
 				if(tempNode == Optimizable.PULL_ME_UP) {
 					if(tree.hasChildren()) {
@@ -2242,7 +2333,7 @@ public final class MethodScriptCompiler {
 					tree.setOptimized(tempNode.isOptimized());
 					tree.setChildren(tempNode.getChildren());
 					Construct.SetWasIdentifierHelper(tree.getData(), tempNode.getData(), false);
-					optimize(tree, env, procs, compilerErrors);
+					optimize(tree, env, envs, procs, compilerErrors);
 					tree.setOptimized(true);
 					//Some functions can actually make static the arguments, for instance, by pulling up a hardcoded
 					//array, so if they have reversed this, make note of that now
@@ -2323,7 +2414,7 @@ public final class MethodScriptCompiler {
 		//It doesn't know how to optimize. Oh well.
 	}
 
-	private static boolean eliminateDeadCode(ParseTree tree) {
+	private static boolean eliminateDeadCode(ParseTree tree, Environment env, Set<Class<? extends Environment.EnvironmentImpl>> envs) {
 		//Loop through the children, and if any of them are functions that are terminal, truncate.
 		//To explain this further, consider the following:
 		//For the code: concat(die(), msg('')), this diagram shows the abstract syntax tree:
@@ -2360,10 +2451,10 @@ public final class MethodScriptCompiler {
 		//For the time being, we will simply say that if a function uses execs, it
 		//is a branch (branches always use execs, though using execs doesn't strictly
 		//mean you are a branch type function).
-		if(tree.getData() instanceof CFunction) {
+		if(tree.getData() instanceof CFunction && ((CFunction) tree.getData()).hasFunction()) {
 			Function f;
 			try {
-				f = (Function) FunctionList.getFunction(((CFunction) tree.getData()));
+				f = (Function) FunctionList.getFunction(((CFunction) tree.getData()), envs);
 			} catch (ConfigCompileException | ClassCastException ex) {
 				return false;
 			}
@@ -2390,8 +2481,10 @@ public final class MethodScriptCompiler {
 					if(isBranch) {
 						doDeletion = false;
 					} else {
-						MSLog.GetLogger().Log(MSLog.Tags.COMPILER, LogLevel.WARNING, "Unreachable code. Consider"
-												+ " removing this code.", children.get(m).getTarget());
+						env.getEnv(CompilerEnvironment.class)
+								.addCompilerWarning(tree.getFileOptions(), new CompilerWarning("Unreachable code. Consider"
+									+ " removing this code.", children.get(m).getTarget(),
+										FileOptions.SuppressWarning.UnreachableCode));
 						children.remove(m);
 						m--;
 						continue;
@@ -2399,9 +2492,12 @@ public final class MethodScriptCompiler {
 				}
 				ParseTree child = children.get(m);
 				if(child.getData() instanceof CFunction) {
+					if(!((CFunction) child.getData()).hasFunction()) {
+						continue;
+					}
 					Function c;
 					try {
-						c = (Function) FunctionList.getFunction(((CFunction) child.getData()));
+						c = (Function) FunctionList.getFunction(((CFunction) child.getData()), envs);
 					} catch (ConfigCompileException | ClassCastException ex) {
 						continue;
 					}
@@ -2410,7 +2506,7 @@ public final class MethodScriptCompiler {
 						options = ((Optimizable) c).optimizationOptions();
 					}
 					doDeletion = options.contains(OptimizationOption.TERMINAL);
-					boolean subDoDelete = eliminateDeadCode(child);
+					boolean subDoDelete = eliminateDeadCode(child, env, envs);
 					if(subDoDelete) {
 						doDeletion = true;
 					}
@@ -2429,14 +2525,14 @@ public final class MethodScriptCompiler {
 	 *
 	 * @param tree
 	 */
-	private static void processKeywords(ParseTree tree) throws ConfigCompileException {
+	private static void processKeywords(ParseTree tree, Set<ConfigCompileException> compileErrors) {
 		// Keyword processing
 		List<ParseTree> children = tree.getChildren();
 		for(int i = 0; i < children.size(); i++) {
 			ParseTree node = children.get(i);
 			// Keywords can be standalone, or a function can double as a keyword. So we have to check for both
 			// conditions.
-			processKeywords(node);
+			processKeywords(node, compileErrors);
 			if(node.getData() instanceof CKeyword
 					|| (node.getData() instanceof CLabel && ((CLabel) node.getData()).cVal() instanceof CKeyword)
 					|| (node.getData() instanceof CFunction && KeywordList.getKeywordByName(node.getData().val()) != null)) {
@@ -2444,10 +2540,14 @@ public final class MethodScriptCompiler {
 				// remaining nodes, so that subchildren that need processing will be finished, and our current tree level will
 				// be able to independently process it. We don't want to process THIS level though, just the children of this level.
 				for(int j = i + 1; j < children.size(); j++) {
-					processKeywords(children.get(j));
+					processKeywords(children.get(j), compileErrors);
 				}
 				// Now that all the children of the rest of the chain are processed, we can do the processing of this level.
-				i = KeywordList.getKeywordByName(node.getData().val()).process(children, i);
+				try {
+					i = KeywordList.getKeywordByName(node.getData().val()).process(children, i);
+				} catch (ConfigCompileException ex) {
+					compileErrors.add(ex);
+				}
 			}
 		}
 
@@ -2460,6 +2560,7 @@ public final class MethodScriptCompiler {
 	 * @param file The file it was located in
 	 * @param inPureMScript If it is pure MScript, or aliases
 	 * @param env The execution environment
+	 * @param envs The environments that will be available at runtime
 	 * @param done The MethodScriptComplete callback (may be null)
 	 * @param s A script object (may be null)
 	 * @param vars Any $vars (may be null)
@@ -2469,9 +2570,10 @@ public final class MethodScriptCompiler {
 	 * occurred.
 	 */
 	public static Mixed execute(String script, File file, boolean inPureMScript, Environment env,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs,
 			MethodScriptComplete done, Script s, List<Variable> vars)
 			throws ConfigCompileException, ConfigCompileGroupException {
-		return execute(compile(lex(script, file, inPureMScript), env), env, done, s, vars);
+		return execute(compile(lex(script, env, file, inPureMScript), env, envs), env, done, s, vars);
 	}
 
 	/**
@@ -2505,7 +2607,8 @@ public final class MethodScriptCompiler {
 			return CVoid.VOID;
 		}
 		if(script == null) {
-			script = new Script(null, null, env.getEnv(GlobalEnv.class).GetLabel(), new FileOptions(new HashMap<>()));
+			script = new Script(null, null, env.getEnv(GlobalEnv.class).GetLabel(), env.getEnvClasses(),
+					new FileOptions(new HashMap<>()));
 		}
 		if(vars != null) {
 			Map<String, Variable> varMap = new HashMap<>();

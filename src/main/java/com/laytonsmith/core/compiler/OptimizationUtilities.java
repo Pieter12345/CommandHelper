@@ -9,10 +9,12 @@ import com.laytonsmith.core.constructs.CString;
 import com.laytonsmith.core.constructs.IVariable;
 import com.laytonsmith.core.constructs.Target;
 import com.laytonsmith.core.constructs.Variable;
+import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.exceptions.ConfigCompileException;
 import com.laytonsmith.core.exceptions.ConfigCompileGroupException;
 import java.io.File;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -46,11 +48,17 @@ public class OptimizationUtilities {
 	 * This function takes a string script, and returns an equivalent, optimized script.
 	 *
 	 * @param script
+	 * @param env
+	 * @param envs
+	 * @param source
 	 * @return
 	 * @throws ConfigCompileException
+	 * @throws com.laytonsmith.core.exceptions.ConfigCompileGroupException
 	 */
-	public static String optimize(String script, File source) throws ConfigCompileException, ConfigCompileGroupException {
-		ParseTree tree = MethodScriptCompiler.compile(MethodScriptCompiler.lex(script, source, true), null);
+	public static String optimize(String script, Environment env,
+			Set<Class<? extends Environment.EnvironmentImpl>> envs,
+			File source) throws ConfigCompileException, ConfigCompileGroupException {
+		ParseTree tree = MethodScriptCompiler.compile(MethodScriptCompiler.lex(script, env, source, true), null, envs);
 		StringBuilder b = new StringBuilder();
 		//The root always contains null.
 		for(ParseTree child : tree.getChildren()) {
@@ -84,7 +92,7 @@ public class OptimizationUtilities {
 			return ((Variable) node.getData()).getVariableName();
 		} else if(node.getData() instanceof CSlice) {
 			return node.getData().val();
-		} else if(node.getData().isInstanceOf(CArray.class)) {
+		} else if(node.getData().isInstanceOf(CArray.TYPE)) {
 			//It's a hardcoded array. This only happens in the course of optimization, if
 			//the optimizer adds a new array. We still need to handle it appropriately though.
 			//The values in the array will be constant, guaranteed.

@@ -7,6 +7,7 @@ import com.laytonsmith.abstraction.enums.MCChatColor;
 import com.laytonsmith.core.MethodScriptCompiler;
 import com.laytonsmith.core.ParseTree;
 import com.laytonsmith.core.Static;
+import com.laytonsmith.core.compiler.CompilerEnvironment;
 import com.laytonsmith.core.compiler.TokenStream;
 import com.laytonsmith.core.environments.CommandHelperEnvironment;
 import com.laytonsmith.core.environments.Environment;
@@ -126,8 +127,7 @@ public class CommandHelperInterpreterListener implements Listener {
 	}
 
 	public void execute(String script, final MCPlayer p) throws ConfigCompileException, ConfigCompileGroupException {
-		TokenStream stream = MethodScriptCompiler.lex(script, new File("Interpreter"), true);
-		ParseTree tree = MethodScriptCompiler.compile(stream, null);
+		TokenStream stream = MethodScriptCompiler.lex(script, null, new File("Interpreter"), true);
 		interpreterMode.remove(p.getName());
 		GlobalEnv gEnv = new GlobalEnv(plugin.executionQueue, plugin.profiler, plugin.persistenceNetwork,
 				CommandHelperFileLocations.getDefault().getConfigDirectory(),
@@ -135,7 +135,10 @@ public class CommandHelperInterpreterListener implements Listener {
 		gEnv.SetDynamicScriptingMode(true);
 		CommandHelperEnvironment cEnv = new CommandHelperEnvironment();
 		cEnv.SetPlayer(p);
-		Environment env = Environment.createEnvironment(gEnv, cEnv);
+		CompilerEnvironment compilerEnv = new CompilerEnvironment();
+		compilerEnv.setLogCompilerWarnings(false);
+		Environment env = Environment.createEnvironment(gEnv, cEnv, compilerEnv);
+		ParseTree tree = MethodScriptCompiler.compile(stream, env, env.getEnvClasses());
 		try {
 			MethodScriptCompiler.registerAutoIncludes(env, null);
 			MethodScriptCompiler.execute(tree, env, output -> {

@@ -9,6 +9,7 @@ import com.laytonsmith.abstraction.MCColor;
 import com.laytonsmith.abstraction.MCCommandSender;
 import com.laytonsmith.abstraction.MCEntity;
 import com.laytonsmith.abstraction.MCFireworkEffect;
+import com.laytonsmith.abstraction.MCFireworkMeta;
 import com.laytonsmith.abstraction.MCHumanEntity;
 import com.laytonsmith.abstraction.MCItemStack;
 import com.laytonsmith.abstraction.MCLivingEntity;
@@ -55,6 +56,7 @@ import com.laytonsmith.abstraction.entities.MCMinecart;
 import com.laytonsmith.abstraction.entities.MCMushroomCow;
 import com.laytonsmith.abstraction.entities.MCOcelot;
 import com.laytonsmith.abstraction.entities.MCPainting;
+import com.laytonsmith.abstraction.entities.MCPanda;
 import com.laytonsmith.abstraction.entities.MCParrot;
 import com.laytonsmith.abstraction.entities.MCPig;
 import com.laytonsmith.abstraction.entities.MCPigZombie;
@@ -218,7 +220,7 @@ public class EntityManagement {
 						ret.push(new CString(e.getUniqueId().toString(), t), t);
 					}
 				} else {
-					if(args[0].isInstanceOf(CArray.class)) {
+					if(args[0].isInstanceOf(CArray.TYPE)) {
 						c = ObjectGenerator.GetGenerator().location(args[0], null, t).getChunk();
 						for(MCEntity e : c.getEntities()) {
 							ret.push(new CString(e.getUniqueId().toString(), t), t);
@@ -432,7 +434,7 @@ public class EntityManagement {
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
 			MCEntity e = Static.getEntity(args[0], t);
 			MCLocation l;
-			if(args[1].isInstanceOf(CArray.class)) {
+			if(args[1].isInstanceOf(CArray.TYPE)) {
 				l = ObjectGenerator.GetGenerator().location((CArray) args[1], e.getWorld(), t);
 			} else {
 				throw new CREFormatException("An array was expected but received " + args[1], t);
@@ -859,7 +861,7 @@ public class EntityManagement {
 			int dist;
 			List<String> types = new ArrayList<>();
 
-			if(!(args[0].isInstanceOf(CArray.class))) {
+			if(!(args[0].isInstanceOf(CArray.TYPE))) {
 				throw new CREBadEntityException("Expecting an array at parameter 1 of entities_in_radius", t);
 			}
 
@@ -871,7 +873,7 @@ public class EntityManagement {
 			}
 
 			if(args.length == 3) {
-				if(args[2].isInstanceOf(CArray.class)) {
+				if(args[2].isInstanceOf(CArray.TYPE)) {
 					CArray ta = (CArray) args[2];
 					for(int i = 0; i < ta.size(); i++) {
 						types.add(ta.get(i, t).val());
@@ -1122,7 +1124,7 @@ public class EntityManagement {
 			if(args.length >= 3) {
 				l = ObjectGenerator.GetGenerator().location(args[2], null, t);
 				if(args.length == 4) {
-					if(args[3].isInstanceOf(CClosure.class)) {
+					if(args[3].isInstanceOf(CClosure.TYPE)) {
 						consumer = (CClosure) args[3];
 					} else {
 						throw new CREIllegalArgumentException("Expected a closure as last argument for spawn_entity().", t);
@@ -1688,6 +1690,7 @@ public class EntityManagement {
 			docs = docs.replace("%CAT_TYPE%", StringUtils.Join(MCCatType.values(), ", ", ", or ", " or "));
 			docs = docs.replace("%FOX_TYPE%", StringUtils.Join(MCFoxType.values(), ", ", ", or ", " or "));
 			docs = docs.replace("%MUSHROOM_COW_TYPE%", StringUtils.Join(MCMushroomCowType.values(), ", ", ", or ", " or "));
+			docs = docs.replace("%PANDA_GENE%", StringUtils.Join(MCPanda.Gene.values(), ", ", ", or ", " or "));
 			for(Field field : entity_spec.class.getDeclaredFields()) {
 				try {
 					String name = field.getName();
@@ -1842,6 +1845,16 @@ public class EntityManagement {
 					MCFireball ball = (MCFireball) entity;
 					specArray.set(entity_spec.KEY_FIREBALL_DIRECTION, ObjectGenerator.GetGenerator().vector(ball.getDirection(), t), t);
 					break;
+				case FIREWORK:
+					MCFirework firework = (MCFirework) entity;
+					MCFireworkMeta fmeta = firework.getFireWorkMeta();
+					specArray.set(entity_spec.KEY_FIREWORK_STRENGTH, new CInt(fmeta.getStrength(), t), t);
+					CArray fe = new CArray(t);
+					for(MCFireworkEffect effect : fmeta.getEffects()) {
+						fe.push(ObjectGenerator.GetGenerator().fireworkEffect(effect, t), t);
+					}
+					specArray.set(entity_spec.KEY_FIREWORK_EFFECTS, fe, t);
+					break;
 				case FOX:
 					MCFox fox = (MCFox) entity;
 					specArray.set(entity_spec.KEY_GENERIC_SITTING, CBoolean.get(fox.isSitting()), t);
@@ -1922,6 +1935,11 @@ public class EntityManagement {
 				case PAINTING:
 					MCPainting painting = (MCPainting) entity;
 					specArray.set(entity_spec.KEY_PAINTING_ART, new CString(painting.getArt().name(), t), t);
+					break;
+				case PANDA:
+					MCPanda panda = (MCPanda) entity;
+					specArray.set(entity_spec.KEY_PANDA_MAINGENE, new CString(panda.getMainGene().name(), t), t);
+					specArray.set(entity_spec.KEY_PANDA_HIDDENGENE, new CString(panda.getHiddenGene().name(), t), t);
 					break;
 				case PARROT:
 					MCParrot parrot = (MCParrot) entity;
@@ -2020,6 +2038,8 @@ public class EntityManagement {
 				case VILLAGER:
 					MCVillager villager = (MCVillager) entity;
 					specArray.set(entity_spec.KEY_VILLAGER_PROFESSION, new CString(villager.getProfession().name(), t), t);
+					specArray.set(entity_spec.KEY_VILLAGER_LEVEL, new CInt(villager.getLevel(), t), t);
+					specArray.set(entity_spec.KEY_VILLAGER_EXPERIENCE, new CInt(villager.getExperience(), t), t);
 					break;
 				case WITHER_SKULL:
 					MCWitherSkull skull = (MCWitherSkull) entity;
@@ -2096,6 +2116,8 @@ public class EntityManagement {
 		private static final String KEY_FALLING_BLOCK_DROPITEM = "dropitem";
 		private static final String KEY_FALLING_BLOCK_DAMAGE = "damage";
 		private static final String KEY_FIREBALL_DIRECTION = "direction";
+		private static final String KEY_FIREWORK_STRENGTH = "strength";
+		private static final String KEY_FIREWORK_EFFECTS = "effects";
 		private static final String KEY_FOX_CROUCHING = "crouching";
 		private static final String KEY_FOX_TYPE = "type";
 		private static final String KEY_HORSE_COLOR = "color";
@@ -2117,6 +2139,8 @@ public class EntityManagement {
 		private static final String KEY_MUSHROOM_COW_TYPE = "type";
 		private static final String KEY_OCELOT_TYPE = "type";
 		private static final String KEY_PAINTING_ART = "type";
+		private static final String KEY_PANDA_MAINGENE = "maingene";
+		private static final String KEY_PANDA_HIDDENGENE = "hiddengene";
 		private static final String KEY_PARROT_TYPE = "type";
 		private static final String KEY_PIG_SADDLED = "saddled";
 		private static final String KEY_PIG_ZOMBIE_ANGRY = "angry";
@@ -2137,6 +2161,8 @@ public class EntityManagement {
 		private static final String KEY_TROPICALFISH_PATTERN = "pattern";
 		private static final String KEY_TROPICALFISH_PATTERNCOLOR = "patterncolor";
 		private static final String KEY_VILLAGER_PROFESSION = "profession";
+		private static final String KEY_VILLAGER_LEVEL = "level";
+		private static final String KEY_VILLAGER_EXPERIENCE = "experience";
 		private static final String KEY_WITHER_SKULL_CHARGED = "charged";
 		private static final String KEY_WOLF_ANGRY = "angry";
 		private static final String KEY_WOLF_COLOR = "color";
@@ -2182,7 +2208,7 @@ public class EntityManagement {
 					for(String index : specArray.stringKeySet()) {
 						switch(index.toLowerCase()) {
 							case entity_spec.KEY_AREAEFFECTCLOUD_COLOR:
-								if(specArray.get(index, t).isInstanceOf(CArray.class)) {
+								if(specArray.get(index, t).isInstanceOf(CArray.TYPE)) {
 									CArray color = (CArray) specArray.get(index, t);
 									cloud.setColor(ObjectGenerator.GetGenerator().color(color, t));
 								} else {
@@ -2205,11 +2231,11 @@ public class EntityManagement {
 								break;
 							case entity_spec.KEY_AREAEFFECTCLOUD_POTIONMETA:
 								Mixed c = specArray.get(index, t);
-								if(c.isInstanceOf(CArray.class)) {
+								if(c.isInstanceOf(CArray.TYPE)) {
 									CArray meta = (CArray) c;
 									if(meta.containsKey("base")) {
 										Mixed base = meta.get("base", t);
-										if(base.isInstanceOf(CArray.class)) {
+										if(base.isInstanceOf(CArray.TYPE)) {
 											MCPotionData pd = ObjectGenerator.GetGenerator().potionData((CArray) base, t);
 											cloud.setBasePotionData(pd);
 										}
@@ -2217,7 +2243,7 @@ public class EntityManagement {
 									if(meta.containsKey("potions")) {
 										cloud.clearCustomEffects();
 										Mixed potions = meta.get("potions", t);
-										if(potions.isInstanceOf(CArray.class)) {
+										if(potions.isInstanceOf(CArray.TYPE)) {
 											List<MCLivingEntity.MCEffect> list = ObjectGenerator.GetGenerator().potions((CArray) potions, t);
 											for(MCLivingEntity.MCEffect effect : list) {
 												cloud.addCustomEffect(effect);
@@ -2244,7 +2270,7 @@ public class EntityManagement {
 								Mixed cloudSource = specArray.get(index, t);
 								if(cloudSource instanceof CNull) {
 									cloud.setSource(null);
-								} else if(cloudSource.isInstanceOf(CArray.class)) {
+								} else if(cloudSource.isInstanceOf(CArray.TYPE)) {
 									MCBlock b = ObjectGenerator.GetGenerator().location(cloudSource, cloud.getWorld(), t).getBlock();
 									if(b.isDispenser()) {
 										cloud.setSource(b.getDispenser().getBlockProjectileSource());
@@ -2279,7 +2305,7 @@ public class EntityManagement {
 								}
 								break;
 							case entity_spec.KEY_ARROW_DAMAGE:
-								double d = Static.getDouble32(specArray.get(index, t), t);
+								double d = Static.getDouble(specArray.get(index, t), t);
 								if(d < 0) {
 									throw new CRERangeException("Damage cannot be negative.", t);
 								}
@@ -2290,11 +2316,11 @@ public class EntityManagement {
 									throwException(index, t);
 								}
 								Mixed c = specArray.get(index, t);
-								if(c.isInstanceOf(CArray.class)) {
+								if(c.isInstanceOf(CArray.TYPE)) {
 									CArray meta = (CArray) c;
 									if(meta.containsKey("base")) {
 										Mixed base = meta.get("base", t);
-										if(base.isInstanceOf(CArray.class)) {
+										if(base.isInstanceOf(CArray.TYPE)) {
 											MCPotionData pd = ObjectGenerator.GetGenerator().potionData((CArray) base, t);
 											arrow.setBasePotionData(pd);
 										}
@@ -2302,7 +2328,7 @@ public class EntityManagement {
 									if(meta.containsKey("potions")) {
 										arrow.clearCustomEffects();
 										Mixed potions = meta.get("potions", t);
-										if(potions.isInstanceOf(CArray.class)) {
+										if(potions.isInstanceOf(CArray.TYPE)) {
 											List<MCLivingEntity.MCEffect> list = ObjectGenerator.GetGenerator().potions((CArray) potions, t);
 											for(MCLivingEntity.MCEffect effect : list) {
 												arrow.addCustomEffect(effect);
@@ -2342,7 +2368,7 @@ public class EntityManagement {
 								break;
 							case entity_spec.KEY_ARMORSTAND_POSES:
 								Map<MCBodyPart, Vector3D> poseMap = stand.getAllPoses();
-								if(specArray.get(index, t).isInstanceOf(CArray.class)) {
+								if(specArray.get(index, t).isInstanceOf(CArray.TYPE)) {
 									CArray poseArray = (CArray) specArray.get(index, t);
 									for(MCBodyPart key : poseMap.keySet()) {
 										try {
@@ -2490,7 +2516,7 @@ public class EntityManagement {
 								Mixed c = specArray.get(index, t);
 								if(c instanceof CNull) {
 									endercrystal.setBeamTarget(null);
-								} else if(c.isInstanceOf(CArray.class)) {
+								} else if(c.isInstanceOf(CArray.TYPE)) {
 									MCLocation l = ObjectGenerator.GetGenerator().location((CArray) c, endercrystal.getWorld(), t);
 									endercrystal.setBeamTarget(l);
 								} else {
@@ -2614,6 +2640,31 @@ public class EntityManagement {
 								throwException(index, t);
 						}
 					}
+					break;
+				case FIREWORK:
+					MCFirework firework = (MCFirework) entity;
+					MCFireworkMeta fm = firework.getFireWorkMeta();
+					for(String index : specArray.stringKeySet()) {
+						switch(index.toLowerCase()) {
+							case entity_spec.KEY_FIREWORK_STRENGTH:
+								fm.setStrength(Static.getInt32(specArray.get(index, t), t));
+								break;
+							case entity_spec.KEY_FIREWORK_EFFECTS:
+								fm.clearEffects();
+								CArray effects = Static.getArray(specArray.get(index, t), t);
+								for(Mixed eff : effects.asList()) {
+									if(eff.isInstanceOf(CArray.TYPE)) {
+										fm.addEffect(ObjectGenerator.GetGenerator().fireworkEffect((CArray) eff, t));
+									} else {
+										throw new CRECastException("Firework effect expected to be an array.", t);
+									}
+								}
+								break;
+							default:
+								throwException(index, t);
+						}
+					}
+					firework.setFireWorkMeta(fm);
 					break;
 				case FOX:
 					MCFox fox = (MCFox) entity;
@@ -2865,6 +2916,29 @@ public class EntityManagement {
 						}
 					}
 					break;
+				case PANDA:
+					MCPanda panda = (MCPanda) entity;
+					for(String index : specArray.stringKeySet()) {
+						switch(index.toLowerCase()) {
+							case entity_spec.KEY_PANDA_MAINGENE:
+								try {
+									panda.setMainGene(MCPanda.Gene.valueOf(specArray.get(index, t).val().toUpperCase()));
+								} catch (IllegalArgumentException exception) {
+									throw new CREFormatException("Invalid panda gene: " + specArray.get(index, t).val(), t);
+								}
+								break;
+							case entity_spec.KEY_PANDA_HIDDENGENE:
+								try {
+									panda.setHiddenGene(MCPanda.Gene.valueOf(specArray.get(index, t).val().toUpperCase()));
+								} catch (IllegalArgumentException exception) {
+									throw new CREFormatException("Invalid panda gene: " + specArray.get(index, t).val(), t);
+								}
+								break;
+							default:
+								throwException(index, t);
+						}
+					}
+					break;
 				case PARROT:
 					MCParrot parrot = (MCParrot) entity;
 					for(String index : specArray.stringKeySet()) {
@@ -3052,7 +3126,7 @@ public class EntityManagement {
 								}
 								break;
 							case entity_spec.KEY_ARROW_DAMAGE:
-								double d = Static.getDouble32(specArray.get(index, t), t);
+								double d = Static.getDouble(specArray.get(index, t), t);
 								if(d < 0) {
 									throw new CRERangeException("Damage cannot be negative.", t);
 								}
@@ -3100,7 +3174,7 @@ public class EntityManagement {
 								}
 								break;
 							case entity_spec.KEY_ARROW_DAMAGE:
-								double d = Static.getDouble32(specArray.get(index, t), t);
+								double d = Static.getDouble(specArray.get(index, t), t);
 								if(d < 0) {
 									throw new CRERangeException("Damage cannot be negative.", t);
 								}
@@ -3108,11 +3182,11 @@ public class EntityManagement {
 								break;
 							case entity_spec.KEY_TIPPEDARROW_POTIONMETA:
 								Mixed c = specArray.get(index, t);
-								if(c.isInstanceOf(CArray.class)) {
+								if(c.isInstanceOf(CArray.TYPE)) {
 									CArray meta = (CArray) c;
 									if(meta.containsKey("base")) {
 										Mixed base = meta.get("base", t);
-										if(base.isInstanceOf(CArray.class)) {
+										if(base.isInstanceOf(CArray.TYPE)) {
 											MCPotionData pd = ObjectGenerator.GetGenerator().potionData((CArray) base, t);
 											tippedarrow.setBasePotionData(pd);
 										}
@@ -3120,7 +3194,7 @@ public class EntityManagement {
 									if(meta.containsKey("potions")) {
 										tippedarrow.clearCustomEffects();
 										Mixed potions = meta.get("potions", t);
-										if(potions.isInstanceOf(CArray.class)) {
+										if(potions.isInstanceOf(CArray.TYPE)) {
 											List<MCLivingEntity.MCEffect> list = ObjectGenerator.GetGenerator().potions((CArray) potions, t);
 											for(MCLivingEntity.MCEffect effect : list) {
 												tippedarrow.addCustomEffect(effect);
@@ -3152,7 +3226,7 @@ public class EntityManagement {
 								}
 								break;
 							case entity_spec.KEY_ARROW_DAMAGE:
-								double d = Static.getDouble32(specArray.get(index, t), t);
+								double d = Static.getDouble(specArray.get(index, t), t);
 								if(d < 0) {
 									throw new CRERangeException("Damage cannot be negative.", t);
 								}
@@ -3202,6 +3276,22 @@ public class EntityManagement {
 									villager.setProfession(MCProfession.valueOf(specArray.get(index, t).val().toUpperCase()));
 								} catch (IllegalArgumentException exception) {
 									throw new CREFormatException("Invalid profession: " + specArray.get(index, t).val(), t);
+								}
+								break;
+							case entity_spec.KEY_VILLAGER_LEVEL:
+								try {
+									villager.setLevel(Static.getInt32(specArray.get(index, t), t));
+								} catch (IllegalArgumentException exception) {
+									throw new CRERangeException("Expected profession level to be 1-5, but got "
+											+ specArray.get(index, t).val(), t);
+								}
+								break;
+							case entity_spec.KEY_VILLAGER_EXPERIENCE:
+								try {
+									villager.setExperience(Static.getInt32(specArray.get(index, t), t));
+								} catch (IllegalArgumentException exception) {
+									throw new CRERangeException("Expected experience to be a positive number, but got "
+											+ specArray.get(index, t).val(), t);
 								}
 								break;
 							default:
@@ -3353,7 +3443,7 @@ public class EntityManagement {
 			if(entity instanceof MCProjectile) {
 				if(args[1] instanceof CNull) {
 					((MCProjectile) entity).setShooter(null);
-				} else if(args[1].isInstanceOf(CArray.class)) {
+				} else if(args[1].isInstanceOf(CArray.TYPE)) {
 					MCBlock b = ObjectGenerator.GetGenerator().location(args[1], entity.getWorld(), t).getBlock();
 					if(b.isDispenser()) {
 						((MCProjectile) entity).setShooter(b.getDispenser().getBlockProjectileSource());
@@ -3819,7 +3909,7 @@ public class EntityManagement {
 				is = ObjectGenerator.GetGenerator().item(args[0], t);
 			} else {
 				MCPlayer p;
-				if(args[0].isInstanceOf(CArray.class)) {
+				if(args[0].isInstanceOf(CArray.TYPE)) {
 					p = env.getEnv(CommandHelperEnvironment.class).GetPlayer();
 					l = ObjectGenerator.GetGenerator().location(args[0], (p != null ? p.getWorld() : null), t);
 					natural = true;
@@ -3891,7 +3981,7 @@ public class EntityManagement {
 			List<MCFireworkEffect> effects = new ArrayList<>();
 			if(options.containsKey("effects")) {
 				Mixed cEffects = options.get("effects", t);
-				if(cEffects.isInstanceOf(CArray.class)) {
+				if(cEffects.isInstanceOf(CArray.TYPE)) {
 					for(Mixed c : ((CArray) cEffects).asList()) {
 						effects.add(ObjectGenerator.GetGenerator().fireworkEffect((CArray) c, t));
 					}

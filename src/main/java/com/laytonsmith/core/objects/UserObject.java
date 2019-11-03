@@ -55,6 +55,7 @@ public class UserObject implements Mixed {
 		for(Map.Entry<String, List<ElementDefinition>> e : objectDefinition.getElements().entrySet()) {
 			// Fields can only have one element definition, so if the list contains more than one, it is
 			// certainly a method.
+			// TODO
 			if(e.getValue().size() > 1) {
 				continue;
 			}
@@ -149,7 +150,7 @@ public class UserObject implements Mixed {
 	}
 
 	@Override
-	public boolean isInstanceOf(CClassType type) throws ClassNotFoundException {
+	public boolean isInstanceOf(CClassType type) {
 		return Construct.isInstanceof(this, type);
 	}
 

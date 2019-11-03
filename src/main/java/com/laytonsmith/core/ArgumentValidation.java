@@ -1,5 +1,6 @@
 package com.laytonsmith.core;
 
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
 import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.annotations.MEnum;
 import com.laytonsmith.annotations.typeof;
@@ -17,6 +18,7 @@ import com.laytonsmith.core.constructs.CMutablePrimitive;
 import com.laytonsmith.core.constructs.CNull;
 import com.laytonsmith.core.constructs.CNumber;
 import com.laytonsmith.core.constructs.CString;
+import com.laytonsmith.core.constructs.CVoid;
 import com.laytonsmith.core.constructs.Target;
 import com.laytonsmith.core.exceptions.ConfigRuntimeException;
 import com.laytonsmith.core.natives.interfaces.Booleanish;
@@ -69,7 +71,7 @@ public final class ArgumentValidation {
 	 * @return
 	 */
 	public static CArray getArray(Mixed construct, Target t) {
-		if(construct.isInstanceOf(CArray.class)) {
+		if(construct.isInstanceOf(CArray.TYPE)) {
 			return ((CArray) construct);
 		} else {
 			throw new CRECastException("Expecting array, but received " + construct.val(), t);
@@ -97,8 +99,8 @@ public final class ArgumentValidation {
 		if(clazz.isAssignableFrom(construct.getClass())) {
 			return (T) construct;
 		} else {
-			String expectedClassName = clazz.getAnnotation(typeof.class).value();
-			String actualClassName = construct.getClass().getAnnotation(typeof.class).value();
+			String expectedClassName = ClassDiscovery.GetClassAnnotation(clazz, typeof.class).value();
+			String actualClassName = ClassDiscovery.GetClassAnnotation(construct.getClass(), typeof.class).value();
 			throw new CRECastException("Expecting " + expectedClassName + " but receieved " + construct.val()
 					+ " (" + actualClassName + ") instead.", t);
 		}
@@ -233,9 +235,9 @@ public final class ArgumentValidation {
 		if(c == null || c instanceof CNull) {
 			return 0;
 		}
-		if(c.isInstanceOf(CInt.class)) {
+		if(c.isInstanceOf(CInt.TYPE)) {
 			i = getObject(c, t, CInt.class).getInt();
-		} else if(c.isInstanceOf(CBoolean.class)) {
+		} else if(c.isInstanceOf(CBoolean.TYPE)) {
 			if(getObject(c, t, CBoolean.class).getBoolean()) {
 				i = 1;
 			} else {
@@ -362,6 +364,11 @@ public final class ArgumentValidation {
 	 * @return
 	 */
 	public static boolean getBooleanish(Mixed c, Target t) {
+		if(c instanceof CVoid) {
+			// Eventually, we may want to turn this into a warning, maybe even a compiler error, but for now,
+			// to keep backwards compatibility, we want to keep this as is.
+			return false;
+		}
 		if(c instanceof CMutablePrimitive) {
 			c = ((CMutablePrimitive) c).get();
 		}
@@ -513,7 +520,7 @@ public final class ArgumentValidation {
 		if(c instanceof CNull) {
 			return EnumSet.noneOf(enumClass);
 		}
-		if(!c.isInstanceOf(CArray.class)) {
+		if(!c.isInstanceOf(CArray.TYPE)) {
 			Mixed val = c;
 			c = new CArray(t);
 			((CArray) c).push(val, t);

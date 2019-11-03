@@ -503,7 +503,7 @@ public class InventoryManagement {
 				m = Static.GetPlayer(args[0], t);
 				arg = args[1];
 			}
-			if(!(arg.isInstanceOf(CArray.class))) {
+			if(!(arg.isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Expecting an array as the last argument.", t);
 			}
 			CArray array = (CArray) arg;
@@ -660,7 +660,7 @@ public class InventoryManagement {
 				return new CInt(0, t);
 			}
 
-			if(c.isInstanceOf(CArray.class)) {
+			if(c.isInstanceOf(CArray.TYPE)) {
 				ca = (CArray) c;
 				is = ObjectGenerator.GetGenerator().item(ca, t);
 			} else {
@@ -699,9 +699,11 @@ public class InventoryManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
-			if(children.size() > 0 && children.get(children.size() - 1).getData().isInstanceOf(CString.class)) {
+			if(children.size() > 0 && children.get(children.size() - 1).getData().isInstanceOf(CString.TYPE)) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
 			}
 			return null;
@@ -710,6 +712,18 @@ public class InventoryManagement {
 		@Override
 		public Set<OptimizationOption> optimizationOptions() {
 			return EnumSet.of(OptimizationOption.OPTIMIZE_DYNAMIC);
+		}
+
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[]{
+				new ExampleScript("Demonstrates item name and meta matching.",
+					"phas_item(array('name': 'DIAMOND_SWORD', 'meta': array('display': 'The Slasher')))",
+					"Returns how many diamond swords with the name 'The Slasher' that are in the player's inventory."),
+				new ExampleScript("Demonstrates plain item matching.",
+					"phas_item(array('name': 'DIAMOND', 'meta': array('display': null, 'lore': null)))",
+					"Returns the number of diamonds the player has, provided that they have no display name or lore."),
+			};
 		}
 	}
 
@@ -765,7 +779,7 @@ public class InventoryManagement {
 			if(item instanceof CNull) {
 				ca = null;
 				is = StaticLayer.GetItemStack("AIR", 1);
-			} else if(item.isInstanceOf(CArray.class)) {
+			} else if(item.isInstanceOf(CArray.TYPE)) {
 				ca = (CArray) item;
 				is = ObjectGenerator.GetGenerator().item(ca, t);
 			} else {
@@ -807,9 +821,11 @@ public class InventoryManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
-			if(children.size() > 0 && children.get(children.size() - 1).getData().isInstanceOf(CString.class)) {
+			if(children.size() > 0 && children.get(children.size() - 1).getData().isInstanceOf(CString.TYPE)) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
 			}
 			return null;
@@ -820,6 +836,21 @@ public class InventoryManagement {
 			return EnumSet.of(OptimizationOption.OPTIMIZE_DYNAMIC);
 		}
 
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[]{
+				new ExampleScript("Demonstrates item name and meta matching.",
+						"pitem_slot(array('name': 'DIAMOND_SWORD', 'meta': array('display': 'The Slasher')))",
+						"Returns an array of slot numbers of the player's inventory that contain a diamond sword"
+								+ " with the name 'The Slasher', regardless of the item's lore or enchantments."),
+				new ExampleScript("Demonstrates item quantity matching.",
+						"pitem_slot(player(), array('name': 'DIAMOND', 'qty': 8))",
+						"Returns an array of slot numbers that have one ore more diamonds. Ignores 'qty'."),
+				new ExampleScript("Demonstrates plain item matching.",
+						"pitem_slot(array('name': 'DIAMOND', 'meta': array('display': null, 'lore': null)))",
+						"Returns an array of slots that contain diamonds, if they have no lore or display name."),
+			};
+		}
 	}
 
 	@api(environments = {CommandHelperEnvironment.class})
@@ -873,11 +904,11 @@ public class InventoryManagement {
 				if(args[1] instanceof CNull) {
 					return new CInt(0, t);
 				}
-				if(args[1].isInstanceOf(CArray.class)) {
+				if(args[1].isInstanceOf(CArray.TYPE)) {
 					itemOffset = 1;
 				}
 			} else if(args.length == 3) {
-				if(args[0].isInstanceOf(CString.class)) { // we assume player here, apparently
+				if(args[0].isInstanceOf(CString.TYPE)) { // we assume player here, apparently
 					itemOffset = 1;
 				}
 			} else if(args.length == 4) {
@@ -891,7 +922,7 @@ public class InventoryManagement {
 				p = Static.GetPlayer(args[0], t);
 			}
 
-			if(args[itemOffset].isInstanceOf(CArray.class)) {
+			if(args[itemOffset].isInstanceOf(CArray.TYPE)) {
 				is = ObjectGenerator.GetGenerator().item(args[itemOffset], t);
 			} else if(args.length > 1) {
 				is = Static.ParseItemNotation(null, args[itemOffset].val(), Static.getInt32(args[itemOffset + 1], t), t);
@@ -923,10 +954,12 @@ public class InventoryManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() > 2 || children.size() == 2
-					&& (children.get(1).getData().isInstanceOf(CString.class) || children.get(1).getData().isInstanceOf(CInt.class))) {
+					&& (children.get(1).getData().isInstanceOf(CString.TYPE) || children.get(1).getData().isInstanceOf(CInt.TYPE))) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
 			}
 			return null;
@@ -985,7 +1018,7 @@ public class InventoryManagement {
 				if(args[1] instanceof CNull) {
 					return new CInt(0, t);
 				}
-				if(args[1].isInstanceOf(CArray.class)) {
+				if(args[1].isInstanceOf(CArray.TYPE)) {
 					itemOffset = 1;
 				}
 			} else if(args.length == 3) {
@@ -999,7 +1032,7 @@ public class InventoryManagement {
 				p = Static.GetPlayer(args[0], t);
 			}
 
-			if(args[itemOffset].isInstanceOf(CArray.class)) {
+			if(args[itemOffset].isInstanceOf(CArray.TYPE)) {
 				ca = (CArray) args[itemOffset];
 				is = ObjectGenerator.GetGenerator().item(ca, t);
 			} else {
@@ -1042,10 +1075,12 @@ public class InventoryManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() > 2 || children.size() == 2
-					&& (children.get(1).getData().isInstanceOf(CString.class) || children.get(1).getData().isInstanceOf(CInt.class))) {
+					&& (children.get(1).getData().isInstanceOf(CString.TYPE) || children.get(1).getData().isInstanceOf(CInt.TYPE))) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
 			}
 			return null;
@@ -1054,6 +1089,23 @@ public class InventoryManagement {
 		@Override
 		public Set<OptimizationOption> optimizationOptions() {
 			return EnumSet.of(OptimizationOption.OPTIMIZE_DYNAMIC);
+		}
+
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[]{
+				new ExampleScript("Demonstrates item name and meta matching.",
+					"ptake_item(array('name': 'DIAMOND_SWORD', 'meta': array('display': 'The Slasher')))",
+					"Removes one diamond sword with the name 'The Slasher' from the player's inventory."
+							+ " This removes the item regardless of lore or enchantments."),
+				new ExampleScript("Demonstrates item quantity matching.",
+					"ptake_item(player(), array('name': 'DIAMOND', 'qty': 8))",
+					"Removes up to eight diamonds from a player's inventory and returns how many."
+							+ " This removes the item even if it has a different display name."),
+				new ExampleScript("Demonstrates plain item matching.",
+					"ptake_item(array('name': 'DIAMOND', 'meta': array('display': null, 'lore': null)))",
+					"This will remove one diamond, provided that the diamond has no display name or lore."),
+			};
 		}
 	}
 
@@ -1108,11 +1160,11 @@ public class InventoryManagement {
 				if(args[1] instanceof CNull) {
 					return new CInt(0, t);
 				}
-				if(args[1].isInstanceOf(CArray.class)) {
+				if(args[1].isInstanceOf(CArray.TYPE)) {
 					itemOffset = 1;
 				}
 			} else if(args.length == 3) {
-				if(args[0].isInstanceOf(CString.class)) { // we assume player here, apparently
+				if(args[0].isInstanceOf(CString.TYPE)) { // we assume player here, apparently
 					itemOffset = 1;
 				}
 			} else if(args.length == 4) {
@@ -1126,7 +1178,7 @@ public class InventoryManagement {
 				p = Static.GetPlayer(args[0], t);
 			}
 
-			if(args[itemOffset].isInstanceOf(CArray.class)) {
+			if(args[itemOffset].isInstanceOf(CArray.TYPE)) {
 				is = ObjectGenerator.GetGenerator().item(args[itemOffset], t);
 			} else {
 				is = Static.ParseItemNotation(null, args[itemOffset].val(), Static.getInt32(args[itemOffset + 1], t), t);
@@ -1156,10 +1208,12 @@ public class InventoryManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() > 2 || children.size() == 2
-					&& (children.get(1).getData().isInstanceOf(CString.class) || children.get(1).getData().isInstanceOf(CInt.class))) {
+					&& (children.get(1).getData().isInstanceOf(CString.TYPE) || children.get(1).getData().isInstanceOf(CInt.TYPE))) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
 			}
 			return null;
@@ -1217,7 +1271,7 @@ public class InventoryManagement {
 				if(args[1] instanceof CNull) {
 					return new CInt(0, t);
 				}
-				if(args[1].isInstanceOf(CArray.class)) {
+				if(args[1].isInstanceOf(CArray.TYPE)) {
 					itemOffset = 1;
 				}
 			} else if(args.length == 3) {
@@ -1231,7 +1285,7 @@ public class InventoryManagement {
 				p = Static.GetPlayer(args[0], t);
 			}
 
-			if(args[itemOffset].isInstanceOf(CArray.class)) {
+			if(args[itemOffset].isInstanceOf(CArray.TYPE)) {
 				ca = (CArray) args[itemOffset];
 				is = ObjectGenerator.GetGenerator().item(ca, t);
 			} else {
@@ -1273,10 +1327,12 @@ public class InventoryManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() > 2 || children.size() == 2
-					&& (children.get(1).getData().isInstanceOf(CString.class) || children.get(1).getData().isInstanceOf(CInt.class))) {
+					&& (children.get(1).getData().isInstanceOf(CString.TYPE) || children.get(1).getData().isInstanceOf(CInt.TYPE))) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
 			}
 			return null;
@@ -1285,6 +1341,23 @@ public class InventoryManagement {
 		@Override
 		public Set<OptimizationOption> optimizationOptions() {
 			return EnumSet.of(OptimizationOption.OPTIMIZE_DYNAMIC);
+		}
+
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[]{
+				new ExampleScript("Demonstrates item name and meta matching.",
+					"ptake_enderchest_item(array('name': 'DIAMOND_SWORD', 'meta': array('display': 'The Slasher')))",
+					"Removes one diamond sword with the name 'The Slasher' from the player's enderchest."
+							+ " This removes the item regardless of lore or enchantments."),
+				new ExampleScript("Demonstrates item quantity matching.",
+					"ptake_enderchest_item(player(), array('name': 'DIAMOND', 'qty': 8))",
+					"Removes up to eight diamonds from a player's enderchest and returns how many."
+							+ " This removes the item even if it has a different display name."),
+				new ExampleScript("Demonstrates plain item matching.",
+					"ptake_enderchest_item(array('name': 'DIAMOND', 'meta': array('display': null, 'lore': null)))",
+					"This will remove one diamond, provided that the diamond has no display name or lore."),
+			};
 		}
 	}
 
@@ -1356,7 +1429,7 @@ public class InventoryManagement {
 				arg = args[0];
 			}
 
-			if(!(arg.isInstanceOf(CArray.class))) {
+			if(!(arg.isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Expecting an array as argument " + (args.length == 1 ? "1" : "2"), t);
 			}
 
@@ -1969,7 +2042,7 @@ public class InventoryManagement {
 			MCInventory inventory = InventoryManagement.GetInventory(args[0], null, t);
 			Integer size = inventory.getSize();
 
-			if(!(args[1].isInstanceOf(CArray.class))) {
+			if(!(args[1].isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Expecting an array as argument 2", t);
 			}
 
@@ -2065,7 +2138,9 @@ public class InventoryManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() > 2) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
@@ -2159,7 +2234,9 @@ public class InventoryManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() == 3) {
 				MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The string item format in " + getName() + " is deprecated.", t);
@@ -2170,6 +2247,23 @@ public class InventoryManagement {
 		@Override
 		public Set<OptimizationOption> optimizationOptions() {
 			return EnumSet.of(OptimizationOption.OPTIMIZE_DYNAMIC);
+		}
+
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[]{
+				new ExampleScript("Demonstrates item name and meta matching.",
+					"take_from_inventory(puuid(), array('name': 'DIAMOND_SWORD', 'meta': array('display': 'Slasher')))",
+					"Removes one diamond sword with the name 'Slasher' from the player's inventory."
+							+ " This removes the item regardless of lore or enchantments."),
+				new ExampleScript("Demonstrates item quantity matching.",
+					"take_from_inventory(@location, array('name': 'DIAMOND', 'qty': 8))",
+					"Removes up to eight diamonds from an inventory at a storage block location and returns how many."
+							+ " This removes the item even if it has a different display name."),
+				new ExampleScript("Demonstrates plain item matching.",
+					"take_from_inventory(@uuid, array('name': 'DIAMOND', 'meta': array('display': null, 'lore': null)))",
+					"This will remove 1 diamond from an entity, provided that the diamond has no display name or lore"),
+			};
 		}
 	}
 
@@ -2588,7 +2682,7 @@ public class InventoryManagement {
 			int size = 54;
 			String title = null;
 			if(args.length > 1) {
-				if(args[1].isInstanceOf(CNumber.class)) {
+				if(args[1].isInstanceOf(CNumber.TYPE)) {
 					size = Static.getInt32(args[1], t);
 					if(size < 9) {
 						size = 9; // minimum
@@ -2622,7 +2716,7 @@ public class InventoryManagement {
 			}
 
 			if(args.length == 4) {
-				if(!(args[3].isInstanceOf(CArray.class))) {
+				if(!(args[3].isInstanceOf(CArray.TYPE))) {
 					throw new CRECastException("Inventory argument not an array in " + getName(), t);
 				}
 				CArray array = (CArray) args[3];
@@ -2733,7 +2827,7 @@ public class InventoryManagement {
 	 */
 	private static MCInventory GetInventory(Mixed specifier, MCWorld w, Target t) {
 		MCInventory inv;
-		if(specifier.isInstanceOf(CArray.class)) {
+		if(specifier.isInstanceOf(CArray.TYPE)) {
 			MCLocation l = ObjectGenerator.GetGenerator().location(specifier, w, t);
 			inv = StaticLayer.GetConvertor().GetLocationInventory(l);
 			if(inv == null) {

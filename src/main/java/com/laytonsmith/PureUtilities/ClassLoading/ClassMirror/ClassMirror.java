@@ -37,9 +37,8 @@ public class ClassMirror<T> implements Serializable {
 
 	/**
 	 * The original URL that houses this class.
-	 *
 	 */
-	private URL originalURL;
+	private URL originalURL; // reflectively modified in ClassDiscoveryURLCache
 
 	protected ClassMirror(ClassInfo<T> info, URL originalURL) {
 		this.underlyingClass = null;
@@ -322,7 +321,7 @@ public class ClassMirror<T> implements Serializable {
 	 * @return
 	 * @throws IllegalArgumentException If the underlying mechanism backing this
 	 * ClassMirror object is a real loaded class, this method will throw an
-	 * IllegalArgumentException
+	 * IllegalArgumentException, because real classes don't know their generic types.
 	 */
 	public Map<ClassReferenceMirror<?>, List<ClassReferenceMirror<?>>> getGenerics() throws IllegalArgumentException {
 		if(underlyingClass != null) {

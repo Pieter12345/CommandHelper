@@ -5,6 +5,7 @@
  */
 package com.laytonsmith.core;
 
+import com.laytonsmith.PureUtilities.ArgumentSuite;
 import com.laytonsmith.PureUtilities.Common.Annotations.ForceImplementation;
 
 /**
@@ -13,8 +14,32 @@ import com.laytonsmith.PureUtilities.Common.Annotations.ForceImplementation;
  */
 public abstract class AbstractCommandLineTool implements CommandLineTool {
 
+	private ArgumentSuite suite;
+
 	@ForceImplementation
 	public AbstractCommandLineTool() {
 	}
 
+	@Override
+	public boolean noExitOnReturn() {
+		return false;
+	}
+
+	@Override
+	public void setSuite(ArgumentSuite suite) {
+		this.suite = suite;
+	}
+
+	/**
+	 * Returns the argument suite this mode was part of.
+	 * @return
+	 */
+	protected ArgumentSuite getSuite() {
+		return this.suite;
+	}
+
+	@Override
+	public boolean startupExtensionManager() {
+		return true;
+	}
 }

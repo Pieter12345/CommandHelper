@@ -35,7 +35,6 @@ import com.laytonsmith.core.constructs.IVariable;
 import com.laytonsmith.core.constructs.IVariableList;
 import com.laytonsmith.core.constructs.NativeTypeList;
 import com.laytonsmith.core.constructs.Target;
-import com.laytonsmith.core.environments.CommandHelperEnvironment;
 import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.environments.GlobalEnv;
 import com.laytonsmith.core.exceptions.CRE.AbstractCREException;
@@ -65,7 +64,7 @@ public class Exceptions {
 		return "This class contains functions related to Exception handling in MethodScript";
 	}
 
-	@api(environments = CommandHelperEnvironment.class)
+	@api
 	@seealso({_throw.class, com.laytonsmith.tools.docgen.templates.Exceptions.class})
 	public static class _try extends AbstractFunction implements BranchStatement, VariableScope {
 
@@ -147,9 +146,9 @@ public class Exceptions {
 			List<FullyQualifiedClassName> interest = new ArrayList<>();
 			if(types != null) {
 				Mixed ptypes = that.seval(types, env);
-				if(ptypes.isInstanceOf(CString.class)) {
+				if(ptypes.isInstanceOf(CString.TYPE)) {
 					interest.add(FullyQualifiedClassName.forName(ptypes.val(), t, env));
-				} else if(ptypes.isInstanceOf(CArray.class)) {
+				} else if(ptypes.isInstanceOf(CArray.TYPE)) {
 					CArray ca = (CArray) ptypes;
 					for(int i = 0; i < ca.size(); i++) {
 						interest.add(FullyQualifiedClassName.forName(ca.get(i, t).val(), t, env));
@@ -170,13 +169,16 @@ public class Exceptions {
 			try {
 				that.eval(tryCode, env);
 			} catch (ConfigRuntimeException e) {
-				String name = AbstractCREException.getExceptionName(e);
+				if(!(e instanceof AbstractCREException)) {
+					throw e;
+				}
+				FullyQualifiedClassName name = ((AbstractCREException) e).getExceptionType().getFQCN();
 				if(Prefs.DebugMode()) {
 					StreamUtils.GetSystemOut().println("[" + Implementation.GetServerType().getBranding() + "]:"
 							+ " Exception thrown (debug mode on) -> " + e.getMessage() + " :: " + name + ":"
 							+ e.getTarget().file() + ":" + e.getTarget().line());
 				}
-				if(name != null && (interest.isEmpty() || interest.contains(name))) {
+				if(interest.isEmpty() || interest.contains(name)) {
 					if(catchCode != null) {
 						CArray ex = ObjectGenerator.GetGenerator().exception(e, env, t);
 						if(ivar != null) {
@@ -251,7 +253,7 @@ public class Exceptions {
 			String exceptions = "\n";
 			List<String> ee = new ArrayList<>();
 			for(Class<? extends CREThrowable> c : e) {
-				String exceptionType = c.getAnnotation(typeof.class).value();
+				String exceptionType = ClassDiscovery.GetClassAnnotation(c, typeof.class).value();
 				ee.add(exceptionType);
 			}
 			Collections.sort(ee);
@@ -347,7 +349,7 @@ public class Exceptions {
 
 		@Override
 		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
-			if(args[0].isInstanceOf(CClosure.class)) {
+			if(args[0].isInstanceOf(CClosure.TYPE)) {
 				CClosure old = environment.getEnv(GlobalEnv.class).GetExceptionHandler();
 				environment.getEnv(GlobalEnv.class).SetExceptionHandler((CClosure) args[0]);
 				if(old == null) {
@@ -523,13 +525,16 @@ public class Exceptions {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			List<CClassType> types = new ArrayList<>();
 			for(int i = 1; i < children.size() - 1; i += 2) {
 				// TODO: Eh.. should probably move this check into the keyword, since techincally
 				// catch (Exception @e = null) { } would work.
 				ParseTree assign = children.get(i);
-				if(assign.getChildAt(0).getData().isInstanceOf(CString.class)) {
+				if(assign.getChildAt(0).getData().isInstanceOf(CString.TYPE)) {
 					// This is an unknown exception type, because otherwise it would have been cast to a CClassType
 					throw new ConfigCompileException("Unknown class type: " + assign.getChildAt(0).getData().val(), t);
 				}

@@ -17,15 +17,17 @@ public abstract class AbstractMethodMirror extends AbstractElementMirror {
 	private final List<ClassReferenceMirror> params;
 	private boolean isVararg = false;
 	private boolean isSynthetic = false;
+	private int lineNumber = 0;
 
 	/**
 	 * TODO: Once we switch to Java 1.8, this should be replaced by java.lang.reflect.Executable.
 	 */
 	private Member underlyingMethod = null;
 
-	public AbstractMethodMirror(ClassReferenceMirror parentClass, List<AnnotationMirror> annotations, ModifierMirror modifiers,
-			ClassReferenceMirror type, String name, List<ClassReferenceMirror> params, boolean isVararg, boolean isSynthetic) {
-		super(parentClass, annotations, modifiers, type, name);
+	public AbstractMethodMirror(ClassReferenceMirror parentClass, List<AnnotationMirror> annotations,
+			ModifierMirror modifiers, ClassReferenceMirror type, String name, List<ClassReferenceMirror> params,
+			boolean isVararg, boolean isSynthetic, String signature) {
+		super(parentClass, annotations, modifiers, type, name, signature);
 		Objects.requireNonNull(params, "params cannot be null");
 		this.params = params;
 		this.isVararg = isVararg;
@@ -38,9 +40,10 @@ public abstract class AbstractMethodMirror extends AbstractElementMirror {
 		this.params = null;
 	}
 
-	/* package */ AbstractMethodMirror(ClassReferenceMirror parentClass, ModifierMirror modifiers, ClassReferenceMirror type,
-			String name, List<ClassReferenceMirror> params, boolean isVararg, boolean isSynthetic) {
-		super(parentClass, null, modifiers, type, name);
+	/* package */ AbstractMethodMirror(ClassReferenceMirror parentClass, ModifierMirror modifiers,
+			ClassReferenceMirror type, String name, List<ClassReferenceMirror> params, boolean isVararg,
+			boolean isSynthetic, String signature) {
+		super(parentClass, null, modifiers, type, name, signature);
 		annotations = new ArrayList<>();
 		Objects.requireNonNull(params, "params cannot be null");
 		this.params = params;
@@ -86,6 +89,25 @@ public abstract class AbstractMethodMirror extends AbstractElementMirror {
 			return underlyingMethod.isSynthetic();
 		}
 		return isSynthetic;
+	}
+
+	/**
+	 * Returns the line number of the first executable instruction within a method.
+	 * Note that this information is only available through
+	 * the class files, so Mirrors constructed with real Members will return 0 for this. Also note that due to the
+	 * jvm specification, only lines with executable instructions contain values in the line number table. Therefore,
+	 * things like empty methods will not be in the line number table at all, and thus will return line 0 for this
+	 * value. Therefore, it is very important to not rely on this returning a useable value, and having a fallback
+	 * mechanism if this returns 0. It's also important to note that this will not return the line number for the
+	 * method itself, since that isn't an executable statement.
+	 * @return
+	 */
+	public int getLineNumber() {
+		return lineNumber;
+	}
+
+	/*package*/ final void setLineNumber(int i) {
+		lineNumber = i;
 	}
 
 	@Override

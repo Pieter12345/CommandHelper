@@ -289,6 +289,133 @@ public class Environment {
 		}
 	}
 
+	@api
+	public static class get_blockdata extends AbstractFunction {
+
+		@Override
+		public String getName() {
+			return "get_blockdata";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{1};
+		}
+
+		@Override
+		public String docs() {
+			return "array {locationArray} Gets the block data as an array at the location.";
+		}
+
+		@Override
+		public Mixed exec(Target t, com.laytonsmith.core.environments.Environment env, Mixed... args)
+				throws CancelCommandException, ConfigRuntimeException {
+			MCLocation loc = ObjectGenerator.GetGenerator().location(args[0], null, t);
+			MCBlock b = loc.getWorld().getBlockAt(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+			if(b == null) {
+				throw new CRENotFoundException("Could not find the block in " + this.getName() + " (cmdline mode?)", t);
+			}
+			return ObjectGenerator.GetGenerator().blockData(b.getBlockData(), t);
+		}
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{CREFormatException.class, CRECastException.class, CREInvalidWorldException.class,
+					CRENotFoundException.class};
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return true;
+		}
+
+		@Override
+		public MSVersion since() {
+			return MSVersion.V3_3_4;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return false;
+		}
+	}
+
+	@api
+	public static class set_blockdata extends AbstractFunction {
+
+		@Override
+		public String getName() {
+			return "set_blockdata";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{2, 3};
+		}
+
+		@Override
+		public String docs() {
+			return "void {locationArray, data, [physics]} Sets the block at the location from a blockdata object.";
+		}
+
+		@Override
+		public Mixed exec(Target t, com.laytonsmith.core.environments.Environment env, Mixed... args)
+				throws CancelCommandException, ConfigRuntimeException {
+			MCLocation loc = ObjectGenerator.GetGenerator().location(args[0], null, t);
+			MCBlock b = loc.getWorld().getBlockAt(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+			if(b == null) {
+				throw new CRENotFoundException("Could not find the block in " + this.getName() + " (cmdline mode?)", t);
+			}
+			boolean physics = true;
+			if(args.length == 3) {
+				physics = ArgumentValidation.getBooleanish(args[2], t);
+			}
+			MCBlockData bd;
+			try {
+				if(args[1] instanceof CArray) {
+					CArray bda = (CArray) args[1];
+					if(bda.size() == 1) {
+						MCMaterial mat = StaticLayer.GetMaterial(bda.get("block", t).val().toUpperCase());
+						if(mat == null) {
+							throw new CREIllegalArgumentException("Cannot find material \""
+									+ bda.get("block", t).val() + "\".", t);
+						}
+						b.setType(mat);
+						return CVoid.VOID;
+					}
+					bd = ObjectGenerator.GetGenerator().blockData((CArray) args[1], t);
+				} else {
+					bd = Static.getServer().createBlockData(args[1].val());
+				}
+			} catch (IllegalArgumentException ex) {
+				throw new CREIllegalArgumentException("Cannot create block data from string: " + args[1].val(), t);
+			}
+			b.setBlockData(bd, physics);
+			return CVoid.VOID;
+		}
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{CREFormatException.class, CRECastException.class, CREInvalidWorldException.class,
+					CRENotFoundException.class, CREIllegalArgumentException.class};
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return true;
+		}
+
+		@Override
+		public MSVersion since() {
+			return MSVersion.V3_3_4;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return false;
+		}
+	}
+
 	@hide("Deprecated in favor of get_block()")
 	@api(environments = {CommandHelperEnvironment.class})
 	public static class get_block_at extends AbstractFunction implements Optimizable {
@@ -306,11 +433,12 @@ public class Environment {
 		@Override
 		public String docs() {
 			return "string {x, y, z, [world] | locationArray, [world]} Gets the id of the block at the coordinates."
+					+ " (deprecated for {{function|get_block}}) ----"
 					+ " The format of the return will be x:y where x is the id of the block,"
 					+ " and y is the meta data for the block. All blocks will return in this format,"
 					+ " but blocks that don't have meta data will return 0 in y (eg. air is \"0:0\")."
 					+ " If a world isn't provided in the location array or as an argument,"
-					+ " the current player's world is used. (deprecated for get_block())";
+					+ " the current player's world is used.";
 		}
 
 		@Override
@@ -380,7 +508,10 @@ public class Environment {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, com.laytonsmith.core.environments.Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, com.laytonsmith.core.environments.Environment env,
+				Set<Class<? extends com.laytonsmith.core.environments.Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The function get_block_at() is deprecated. Use get_block().", t);
 			return null;
 		}
@@ -408,11 +539,13 @@ public class Environment {
 		@Override
 		public String docs() {
 			return "void {x, y, z, id, [world] [physics] | locationArray, id, [physics]} Sets the id of the block at"
-					+ " the x y z coordinates specified. The id must be an integer or a blocktype identifier similar to"
+					+ " the x y z coordinates specified."
+					+ " (deprecated for {{function|set_block}}) ----"
+					+ " The id must be an integer or a blocktype identifier similar to"
 					+ " the type returned from get_block_at (eg. \"0:0\"). If the meta value is not specified,"
 					+ " 0 is used. If world isn't specified, the current player's world is used."
 					+ " Physics (which defaults to true) specifies whether or not to update the surrounding blocks when"
-					+ " this block is set. (deprecated for set_block())";
+					+ " this block is set.";
 		}
 
 		@Override
@@ -500,7 +633,10 @@ public class Environment {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, com.laytonsmith.core.environments.Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, com.laytonsmith.core.environments.Environment env,
+				Set<Class<? extends com.laytonsmith.core.environments.Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			MSLog.GetLogger().w(MSLog.Tags.DEPRECATION, "The function set_block_at() is deprecated. Use set_block().", t);
 			return null;
 		}
@@ -565,7 +701,7 @@ public class Environment {
 				String line2 = "";
 				String line3 = "";
 				String line4 = "";
-				if(args.length == 2 && args[1].isInstanceOf(CArray.class)) {
+				if(args.length == 2 && args[1].isInstanceOf(CArray.TYPE)) {
 					CArray ca = (CArray) args[1];
 					if(ca.size() >= 1) {
 						line1 = ca.get(0, t).val();
@@ -846,14 +982,16 @@ public class Environment {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, com.laytonsmith.core.environments.Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, com.laytonsmith.core.environments.Environment env,
+				Set<Class<? extends com.laytonsmith.core.environments.Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 
 			if(children.size() < 1) {
 				return null;
 			}
 			Mixed c = children.get(children.size() - 1).getData();
-			if(c.isInstanceOf(CString.class)) {
+			if(c.isInstanceOf(CString.TYPE)) {
 				try {
 					MCBiomeType.valueOf(c.val());
 				} catch (IllegalArgumentException ex) {
@@ -989,7 +1127,7 @@ public class Environment {
 				w = ((MCPlayer) sender).getWorld();
 			}
 
-			if(args[0].isInstanceOf(CArray.class) && !(args.length == 3)) {
+			if(args[0].isInstanceOf(CArray.TYPE) && !(args.length == 3)) {
 				MCLocation loc = ObjectGenerator.GetGenerator().location(args[0], w, t);
 				x = loc.getX();
 				z = loc.getZ();
@@ -1084,7 +1222,7 @@ public class Environment {
 				throw new CRERangeException("A bit excessive, don't you think? Let's scale that back some, huh?", t);
 			}
 
-			if(!(args[0].isInstanceOf(CArray.class))) {
+			if(!(args[0].isInstanceOf(CArray.TYPE))) {
 				throw new CRECastException("Expecting an array at parameter 1 of explosion", t);
 			}
 
@@ -1152,7 +1290,7 @@ public class Environment {
 				noteOffset = 2;
 				l = ObjectGenerator.GetGenerator().location(args[3], p.getWorld(), t);
 			} else {
-				if(!(args[1].isInstanceOf(CArray.class)) && args[2].isInstanceOf(CArray.class)) {
+				if(!(args[1].isInstanceOf(CArray.TYPE)) && args[2].isInstanceOf(CArray.TYPE)) {
 					//Player provided, location not
 					instrumentOffset = 1;
 					noteOffset = 2;
@@ -1173,7 +1311,7 @@ public class Environment {
 						+ StringUtils.Join(MCInstrument.values(), ", ", ", or "), t);
 			}
 			MCTone tone = null;
-			if(args[noteOffset].isInstanceOf(CArray.class)) {
+			if(args[noteOffset].isInstanceOf(CArray.TYPE)) {
 				int octave = Static.getInt32(((CArray) args[noteOffset]).get("octave", t), t);
 				if(octave < 0 || octave > 2) {
 					throw new CRERangeException("The octave must be 0, 1, or 2, but was " + octave, t);
@@ -1298,7 +1436,7 @@ public class Environment {
 			double speed = 0.0;
 			Object data = null;
 
-			if(args[1].isInstanceOf(CArray.class)) {
+			if(args[1].isInstanceOf(CArray.TYPE)) {
 				CArray pa = (CArray) args[1];
 				try {
 					p = MCParticle.valueOf(pa.get("particle", t).val().toUpperCase());
@@ -1341,7 +1479,7 @@ public class Environment {
 
 				} else if(pa.containsKey("color")) {
 					Mixed c = pa.get("color", t);
-					if(c.isInstanceOf(CArray.class)) {
+					if(c.isInstanceOf(CArray.TYPE)) {
 						data = ObjectGenerator.GetGenerator().color((CArray) c, t);
 					} else {
 						data = StaticLayer.GetConvertor().GetColor(c.val(), t);
@@ -1359,7 +1497,7 @@ public class Environment {
 			try {
 				if(args.length == 3) {
 					MCPlayer player;
-					if(args[2].isInstanceOf(CArray.class)) {
+					if(args[2].isInstanceOf(CArray.TYPE)) {
 						for(Mixed playerName : ((CArray) args[2]).asList()) {
 							player = Static.GetPlayer(playerName, t);
 							player.spawnParticle(l, p, count, offsetX, offsetY, offsetZ, speed, data);
@@ -1409,7 +1547,7 @@ public class Environment {
 			float volume = 1;
 			float pitch = 1;
 
-			if(!(args[1].isInstanceOf(CArray.class))) {
+			if(!(args[1].isInstanceOf(CArray.TYPE))) {
 				throw new CREFormatException("An array was expected but received " + args[1], t);
 			}
 
@@ -1441,7 +1579,7 @@ public class Environment {
 
 			if(args.length == 3) {
 				java.util.List<MCPlayer> players = new java.util.ArrayList<MCPlayer>();
-				if(args[2].isInstanceOf(CArray.class)) {
+				if(args[2].isInstanceOf(CArray.TYPE)) {
 					for(String key : ((CArray) args[2]).stringKeySet()) {
 						players.add(Static.GetPlayer(((CArray) args[2]).get(key, t), t));
 					}
@@ -1496,7 +1634,9 @@ public class Environment {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, com.laytonsmith.core.environments.Environment env, List<ParseTree> children, FileOptions fileOptions)
+		public ParseTree optimizeDynamic(Target t, com.laytonsmith.core.environments.Environment env,
+				Set<Class<? extends com.laytonsmith.core.environments.Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
 				throws ConfigCompileException, ConfigRuntimeException {
 
 			if(children.size() < 2) {
@@ -1508,7 +1648,7 @@ public class Environment {
 					if(node.getData() instanceof CFunction && node.getData().val().equals("centry")) {
 						children = node.getChildren();
 						if(children.get(0).getData().val().equals("sound")
-								&& children.get(1).getData().isInstanceOf(CString.class)) {
+								&& children.get(1).getData().isInstanceOf(CString.TYPE)) {
 							try {
 								MCSound.MCVanillaSound.valueOf(children.get(1).getData().val().toUpperCase());
 							} catch (IllegalArgumentException ex) {
@@ -1558,7 +1698,7 @@ public class Environment {
 			float volume = 1;
 			float pitch = 1;
 
-			if(!(args[1].isInstanceOf(CArray.class))) {
+			if(!(args[1].isInstanceOf(CArray.TYPE))) {
 				throw new CREFormatException("An array was expected but received " + args[1], t);
 			}
 
@@ -1584,7 +1724,7 @@ public class Environment {
 
 			if(args.length == 3) {
 				java.util.List<MCPlayer> players = new java.util.ArrayList<MCPlayer>();
-				if(args[2].isInstanceOf(CArray.class)) {
+				if(args[2].isInstanceOf(CArray.TYPE)) {
 					for(String key : ((CArray) args[2]).stringKeySet()) {
 						players.add(Static.GetPlayer(((CArray) args[2]).get(key, t), t));
 					}
@@ -2066,7 +2206,7 @@ public class Environment {
 				throws ConfigRuntimeException {
 			String cmd = null;
 			if(args.length == 2 && !(args[1] instanceof CNull)) {
-				if(!(args[1].isInstanceOf(CString.class))) {
+				if(!(args[1].isInstanceOf(CString.TYPE))) {
 					throw new CRECastException("Parameter 2 of " + getName() + " must be a string or null", t);
 				}
 				cmd = args[1].val();
@@ -2178,7 +2318,7 @@ public class Environment {
 		) throws ConfigRuntimeException {
 			String name = null;
 			if(args.length == 2 && !(args[1] instanceof CNull)) {
-				if(!(args[1].isInstanceOf(CString.class))) {
+				if(!(args[1].isInstanceOf(CString.TYPE))) {
 					throw new CRECastException("Parameter 2 of " + getName() + " must be a string or null", t);
 				}
 				name = args[1].val();

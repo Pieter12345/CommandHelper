@@ -17,6 +17,7 @@ import com.laytonsmith.core.objects.ObjectDefinitionNotFoundException;
 import com.laytonsmith.core.objects.ObjectDefinitionTable;
 import com.laytonsmith.core.objects.UserObject;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -74,7 +75,7 @@ public final class CClassType extends Construct implements com.laytonsmith.core.
 	 * This is an invalid instance of the underlying type that can only be used for Documentation purposes or finding
 	 * out meta information about the class. Because these can be a type union, this is an array.
 	 *
-	 * DO NOT USE THIS VALUE WITHOUT FIRST CALLING {@link #instantiateInvalidType()}
+	 * DO NOT USE THIS VALUE WITHOUT FIRST CALLING {@link #instantiateInvalidType}
 	 */
 	private Mixed[] invalidType = UNINITIALIZED;
 
@@ -120,10 +121,12 @@ public final class CClassType extends Construct implements com.laytonsmith.core.
 	 */
 	public static CClassType get(FullyQualifiedClassName type) throws ClassNotFoundException {
 		assert type != null;
-		if(!CACHE.containsKey(type)) {
-			CACHE.put(type, new CClassType(type, Target.UNKNOWN, false));
+		CClassType ctype = CACHE.get(type);
+		if(ctype == null) {
+			ctype = new CClassType(type, Target.UNKNOWN, false);
+			CACHE.put(type, ctype);
 		}
-		return CACHE.get(type);
+		return ctype;
 	}
 
 	/**
@@ -141,10 +144,12 @@ public final class CClassType extends Construct implements com.laytonsmith.core.
 		SortedSet<FullyQualifiedClassName> t = new TreeSet<>(Arrays.asList(types));
 		FullyQualifiedClassName type
 				= FullyQualifiedClassName.forFullyQualifiedClass(StringUtils.Join(t, "|", e -> e.getFQCN()));
-		if(!CACHE.containsKey(type)) {
-			CACHE.put(type, new CClassType(type, Target.UNKNOWN, false));
+		CClassType ctype = CACHE.get(type);
+		if(ctype == null) {
+			ctype = new CClassType(type, Target.UNKNOWN, false);
+			CACHE.put(type, ctype);
 		}
-		return CACHE.get(type);
+		return ctype;
 	}
 
 	/**
@@ -451,7 +456,7 @@ public final class CClassType extends Construct implements com.laytonsmith.core.
 	 * @return
 	 */
 	protected Set<CClassType> getTypes() {
-		Set<CClassType> t = new HashSet<>();
+		Set<CClassType> t = new TreeSet<>(Comparator.comparing(CClassType::getFQCN));
 		for(FullyQualifiedClassName type : types) {
 			try {
 				t.add(CClassType.get(type));

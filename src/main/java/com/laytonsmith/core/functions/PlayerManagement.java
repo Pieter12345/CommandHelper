@@ -18,7 +18,9 @@ import com.laytonsmith.abstraction.blocks.MCBlock;
 import com.laytonsmith.abstraction.blocks.MCBlockData;
 import com.laytonsmith.abstraction.blocks.MCMaterial;
 import com.laytonsmith.abstraction.entities.MCCommandMinecart;
+import com.laytonsmith.abstraction.enums.MCEntityType;
 import com.laytonsmith.abstraction.enums.MCGameMode;
+import com.laytonsmith.abstraction.enums.MCPlayerStatistic;
 import com.laytonsmith.abstraction.enums.MCPotionEffectType;
 import com.laytonsmith.abstraction.enums.MCSound;
 import com.laytonsmith.abstraction.enums.MCSoundCategory;
@@ -81,9 +83,6 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- *
- */
 public class PlayerManagement {
 
 	public static String docs() {
@@ -339,7 +338,7 @@ public class PlayerManagement {
 				Static.AssertPlayerNonNull(p, t);
 				loc = p.getLocation();
 			} else {
-				if(!(args[0].isInstanceOf(CArray.class))) {
+				if(!(args[0].isInstanceOf(CArray.TYPE))) {
 					throw new CRECastException("Expecting an array at parameter 1 of players_in_radius", t);
 				}
 
@@ -492,7 +491,7 @@ public class PlayerManagement {
 			MCPlayer p = env.getEnv(CommandHelperEnvironment.class).GetPlayer();
 			MCLocation l;
 			if(args.length <= 2) {
-				if(!(args[args.length - 1].isInstanceOf(CArray.class))) {
+				if(!(args[args.length - 1].isInstanceOf(CArray.TYPE))) {
 					throw new CRECastException("Expecting an array at parameter " + args.length + " of set_ploc", t);
 				}
 				CArray ca = (CArray) args[args.length - 1];
@@ -588,14 +587,14 @@ public class PlayerManagement {
 			HashSet<MCMaterial> trans = null;
 			int transparentIndex = -1;
 			if(args.length == 1) {
-				if(args[0].isInstanceOf(CArray.class)) {
+				if(args[0].isInstanceOf(CArray.TYPE)) {
 					transparentIndex = 0;
 				} else {
 					p = Static.GetPlayer(args[0], t);
 				}
 			} else if(args.length == 2) {
 				p = Static.GetPlayer(args[0], t);
-				if(args[1].isInstanceOf(CArray.class)) {
+				if(args[1].isInstanceOf(CArray.TYPE)) {
 					transparentIndex = 1;
 				} else {
 					throw new CREFormatException("An array was expected for argument 2 but received " + args[1], t);
@@ -1395,7 +1394,7 @@ public class PlayerManagement {
 					}
 				} else {
 					//if it's a number, we are setting F. Otherwise, it's a getter for the MCPlayer specified.
-					if(!(args[0].isInstanceOf(CInt.class))) {
+					if(!(args[0].isInstanceOf(CInt.TYPE))) {
 						MCPlayer p2 = Static.GetPlayer(args[0], t);
 						l = p2.getLocation();
 					}
@@ -2136,7 +2135,7 @@ public class PlayerManagement {
 
 		@Override
 		public Integer[] numArgs() {
-			return new Integer[]{2, 3, 4, 5, 6};
+			return new Integer[]{2, 3, 4, 5, 6, 7};
 		}
 
 		@Override
@@ -2180,7 +2179,7 @@ public class PlayerManagement {
 			MCPlayer m = Static.GetPlayer(args[0].val(), t);
 
 			MCPotionEffectType type = null;
-			if(args[1].isInstanceOf(CString.class)) {
+			if(args[1].isInstanceOf(CString.TYPE)) {
 				try {
 					type = MCPotionEffectType.valueOf(args[1].val().toUpperCase());
 				} catch (IllegalArgumentException ex) {
@@ -2931,7 +2930,7 @@ public class PlayerManagement {
 
 			Static.AssertPlayerNonNull(m, t);
 
-			return new CDouble(((double) m.getWalkSpeed()), t);
+			return new CDouble(m.getWalkSpeed(), t);
 		}
 	}
 
@@ -3053,7 +3052,7 @@ public class PlayerManagement {
 
 			Static.AssertPlayerNonNull(m, t);
 
-			return new CDouble(((double) m.getFlySpeed()), t);
+			return new CDouble(m.getFlySpeed(), t);
 		}
 	}
 
@@ -3314,7 +3313,7 @@ public class PlayerManagement {
 				ticks = args[0];
 			}
 			int tick = 0;
-			if(ticks.isInstanceOf(CBoolean.class)) {
+			if(ticks.isInstanceOf(CBoolean.TYPE)) {
 				boolean value = ((CBoolean) ticks).getBoolean();
 				if(value) {
 					tick = 20;
@@ -4171,7 +4170,10 @@ public class PlayerManagement {
 		}
 
 		@Override
-		public ParseTree optimizeDynamic(Target t, Environment env, List<ParseTree> children, FileOptions fileOptions) throws ConfigCompileException, ConfigRuntimeException {
+		public ParseTree optimizeDynamic(Target t, Environment env,
+				Set<Class<? extends Environment.EnvironmentImpl>> envs,
+				List<ParseTree> children, FileOptions fileOptions)
+				throws ConfigCompileException, ConfigRuntimeException {
 			if(children.size() < 2) {
 				return null;
 			}
@@ -4510,7 +4512,7 @@ public class PlayerManagement {
 			boolean forced = true;
 
 			if(args.length == 1) {
-				if(args[0].isInstanceOf(CArray.class)) {
+				if(args[0].isInstanceOf(CArray.TYPE)) {
 					if(p instanceof MCPlayer) {
 						m = ((MCPlayer) p);
 					}
@@ -4519,10 +4521,10 @@ public class PlayerManagement {
 					throw new CRECastException("Expecting an array in set_pbed_location", t);
 				}
 			} else if(args.length == 2) {
-				if(args[1].isInstanceOf(CArray.class)) {
+				if(args[1].isInstanceOf(CArray.TYPE)) {
 					pname = args[0].val();
 					locationIndex = 1;
-				} else if(args[0].isInstanceOf(CArray.class)) {
+				} else if(args[0].isInstanceOf(CArray.TYPE)) {
 					if(p instanceof MCPlayer) {
 						m = ((MCPlayer) p);
 					}
@@ -4532,7 +4534,7 @@ public class PlayerManagement {
 					throw new CRECastException("Expecting an array in set_pbed_location", t);
 				}
 			} else if(args.length == 3) {
-				if(args[1].isInstanceOf(CArray.class)) {
+				if(args[1].isInstanceOf(CArray.TYPE)) {
 					pname = args[0].val();
 					locationIndex = 1;
 					forced = ArgumentValidation.getBoolean(args[2], t);
@@ -4564,7 +4566,7 @@ public class PlayerManagement {
 			}
 			Static.AssertPlayerNonNull(m, t);
 
-			if(args[locationIndex].isInstanceOf(CArray.class)) {
+			if(args[locationIndex].isInstanceOf(CArray.TYPE)) {
 				CArray ca = (CArray) args[locationIndex];
 				l = ObjectGenerator.GetGenerator().location(ca, m.getWorld(), t);
 				l.add(0, 1, 0); // someone decided to match ploc() here
@@ -4654,7 +4656,7 @@ public class PlayerManagement {
 
 		@Override
 		public String docs() {
-			return "boolean {[player]} Forces a player to leave their vehicile."
+			return "boolean {[player]} Forces a player to leave their vehicle."
 					+ " This returns false if the player is not riding a vehicle.";
 		}
 
@@ -5712,4 +5714,296 @@ public class PlayerManagement {
 			return false;
 		}
 	}
+
+	@api(environments = {CommandHelperEnvironment.class})
+	public static class ptellraw extends AbstractFunction {
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{CRECastException.class};
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return true;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return false;
+		}
+
+		@Override
+		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
+			String selector = "@s";
+			String json;
+			if(args.length == 1) {
+				json = new DataTransformations.json_encode().exec(t, environment, args[0]).val();
+			} else {
+				selector = ArgumentValidation.getString(args[0], t);
+				json = new DataTransformations.json_encode().exec(t, environment, args[1]).val();
+			}
+			new Meta.sudo().exec(t, environment, new CString("/minecraft:tellraw " + selector + " " + json, t));
+			return CVoid.VOID;
+		}
+
+		@Override
+		public String getName() {
+			return "ptellraw";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{1, 2};
+		}
+
+		@Override
+		public String docs() {
+			return "void {[string selector], array raw} A thin wrapper around the tellraw command from player context,"
+					+ " this simply passes the input to the command. The raw is passed in as a normal"
+					+ " (possibly associative) array, and json encoded. No validation is done on the input,"
+					+ " so the command may fail. If not provided, the selector defaults to @s. Do not use double quotes"
+					+ " (smart string) when providing the selector. See {{function|tellraw}} if you don't need player"
+					+ " context. ---- The specification of the array may change from version to version of Minecraft,"
+					+ " but is documented here https://minecraft.gamepedia.com/Commands#Raw_JSON_text."
+					+ " This function is simply written in terms of json_encode and sudo, and is otherwise equivalent"
+					+ " to sudo('/minecraft:tellraw ' . @selector . ' ' . json_encode(@raw))";
+		}
+
+		@Override
+		public Version since() {
+			return MSVersion.V3_3_4;
+		}
+
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[] {
+				new ExampleScript("Simple usage with a plain message",
+						"ptellraw('@a', array('text': 'Hello World!'));",
+						"<<Would output the plain message to all player.>>"),
+				new ExampleScript("Advanced usage with embedded selectors.",
+						"ptellraw('@a', array(\n"
+								+ "\tarray('selector': '@s'), // prints current player\n"
+								+ "\tarray('text': ': Hello '),\n"
+								+ "\tarray('selector': '@p') // prints receiving player\n"
+								+ "));",
+						"<<Would output a message from the current player to all players.>>"),
+				new ExampleScript("Complex object",
+						"ptellraw(array(\n"
+								+ "\tarray('text': 'Hello '),\n"
+								+ "\tarray('text': 'World', 'color': 'light_purple'),\n"
+								+ "\tarray('text': '!')\n"
+								+ "));",
+						"<<Would output the colorful message to the current player>>")
+			};
+		}
+
+	}
+
+	@api(environments = {CommandHelperEnvironment.class})
+	public static class pstatistic extends AbstractFunction {
+
+		@Override
+		public String getName() {
+			return "pstatistic";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{1, 2, 3};
+		}
+
+		@Override
+		public String docs() {
+			return "int {[player], statistic, [type]} Returns the specified statistic for the player."
+					+ " Some statistics require a block, item or entity type. An IllegalArgumentException will"
+					+ " be thrown if the statistic is invalid, or if the type is invalid for that statistic."
+					+ " The player argument is required before the type argument is."
+					+ " ---- Valid statistics are: " + StringUtils.Join(MCPlayerStatistic.values(), ", ", ", or ", " or ");
+		}
+
+		@Override
+		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
+			MCPlayer p = environment.getEnv(CommandHelperEnvironment.class).GetPlayer();
+			String filter = null;
+			MCPlayerStatistic stat;
+			int offset = 0;
+			if(args.length > 1) {
+				offset = 1;
+				p = Static.GetPlayer(args[0], t);
+				if(args.length > 2) {
+					filter = args[2].val().toUpperCase();
+				}
+			}
+
+			try {
+				stat = MCPlayerStatistic.valueOf(args[offset].val().toUpperCase());
+			} catch (IllegalArgumentException ex) {
+				throw new CREIllegalArgumentException("Invalid statistic type: " + args[offset].val(), t);
+			}
+
+			MCPlayerStatistic.Type type = stat.getType();
+			int ret = 0;
+			if(type != MCPlayerStatistic.Type.NONE) {
+				if(filter == null) {
+					throw new CREInsufficientArgumentsException("Missing " + type.name().toLowerCase()
+							+ " type for statistic: " + args[offset].val(), t);
+				}
+				switch(type) {
+					case BLOCK:
+						MCMaterial block = StaticLayer.GetMaterial(filter);
+						if(block == null || !block.isBlock()) {
+							throw new CREIllegalArgumentException("Invalid block type: " + filter, t);
+						}
+						ret = p.getStatistic(stat, block);
+						break;
+					case ENTITY:
+						try {
+							ret = p.getStatistic(stat, MCEntityType.valueOf(filter.toUpperCase()));
+						} catch (IllegalArgumentException ex) {
+							throw new CREIllegalArgumentException("Invalid entity type: " + filter, t);
+						}
+						break;
+					case ITEM:
+						MCMaterial item = StaticLayer.GetMaterial(filter);
+						if(item == null) {
+							throw new CREIllegalArgumentException("Invalid item type: " + filter, t);
+						}
+						ret = p.getStatistic(stat, item);
+						break;
+				}
+			} else {
+				ret = p.getStatistic(stat);
+			}
+			return new CInt(ret, t);
+		}
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{CREIllegalArgumentException.class, CREPlayerOfflineException.class};
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return true;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return false;
+		}
+
+		@Override
+		public MSVersion since() {
+			return MSVersion.V3_3_4;
+		}
+	}
+
+	@api(environments = {CommandHelperEnvironment.class})
+	public static class set_pstatistic extends AbstractFunction {
+
+		@Override
+		public String getName() {
+			return "set_pstatistic";
+		}
+
+		@Override
+		public Integer[] numArgs() {
+			return new Integer[]{2, 3, 4};
+		}
+
+		@Override
+		public String docs() {
+			return "void {[player], statistic, [type], amount} Sets the specified statistic for the player."
+					+ " Some statistics require a block, item or entity type. An IllegalArgumentException will"
+					+ " be thrown if the statistic is invalid, or if the type is invalid for that statistic."
+					+ " The player argument is required before the type argument is."
+					+ " ---- Valid statistics are: " + StringUtils.Join(MCPlayerStatistic.values(), ", ", ", or ", " or ");
+		}
+
+		@Override
+		public Mixed exec(Target t, Environment environment, Mixed... args) throws ConfigRuntimeException {
+			MCPlayer p = environment.getEnv(CommandHelperEnvironment.class).GetPlayer();
+			String filter = null;
+			MCPlayerStatistic stat;
+			int offset = 0;
+			int amount = 0;
+			if(args.length > 2) {
+				offset = 1;
+				p = Static.GetPlayer(args[0], t);
+				if(args.length == 3) {
+					amount = Static.getInt32(args[2], t);
+				} else {
+					filter = args[2].val().toUpperCase();
+					amount = Static.getInt32(args[3], t);
+				}
+			}
+
+			try {
+				stat = MCPlayerStatistic.valueOf(args[offset].val().toUpperCase());
+			} catch (IllegalArgumentException ex) {
+				throw new CREIllegalArgumentException("Invalid statistic type: " + args[offset].val(), t);
+			}
+
+			if(amount < 0) {
+				throw new CRERangeException("Amount must not be negative.", t);
+			}
+
+			MCPlayerStatistic.Type type = stat.getType();
+			if(type != MCPlayerStatistic.Type.NONE) {
+				if(filter == null) {
+					throw new CREInsufficientArgumentsException("Missing " + type.name().toLowerCase()
+							+ " type for statistic: " + args[offset].val(), t);
+				}
+				switch(type) {
+					case BLOCK:
+						MCMaterial block = StaticLayer.GetMaterial(filter);
+						if(block == null || !block.isBlock()) {
+							throw new CREIllegalArgumentException("Invalid block type: " + filter, t);
+						}
+						p.setStatistic(stat, block, amount);
+						break;
+					case ENTITY:
+						try {
+							p.setStatistic(stat, MCEntityType.valueOf(filter.toUpperCase()), amount);
+						} catch (IllegalArgumentException ex) {
+							throw new CREIllegalArgumentException("Invalid entity type: " + filter, t);
+						}
+						break;
+					case ITEM:
+						MCMaterial item = StaticLayer.GetMaterial(filter);
+						if(item == null) {
+							throw new CREIllegalArgumentException("Invalid item type: " + filter, t);
+						}
+						p.setStatistic(stat, item, amount);
+						break;
+				}
+			} else {
+				p.setStatistic(stat, amount);
+			}
+			return CVoid.VOID;
+		}
+
+		@Override
+		public Class<? extends CREThrowable>[] thrown() {
+			return new Class[]{CRERangeException.class, CREPlayerOfflineException.class, CRECastException.class,
+					CREIllegalArgumentException.class};
+		}
+
+		@Override
+		public boolean isRestricted() {
+			return true;
+		}
+
+		@Override
+		public Boolean runAsync() {
+			return false;
+		}
+
+		@Override
+		public MSVersion since() {
+			return MSVersion.V3_3_4;
+		}
+	}
+
 }

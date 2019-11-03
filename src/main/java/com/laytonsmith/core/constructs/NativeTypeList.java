@@ -86,8 +86,8 @@ public class NativeTypeList {
 			synchronized(NATIVE_TYPE_LOCK) {
 				nativeTypes = NativeTypeList.nativeTypes;
 				if(nativeTypes == null) {
-					NativeTypeList.nativeTypes = nativeTypes = new HashSet<>();
-					fqNativeTypes = new HashSet<>();
+					Set<FullyQualifiedClassName> fqNativeTypesPrivate = new HashSet<>();
+					nativeTypes = new HashSet<>();
 
 					// Ensure that the jar is loaded. This is mostly useful to not have to worry about unit tests, but
 					// in production, this should actually be redundant.
@@ -97,22 +97,24 @@ public class NativeTypeList {
 					for(ClassMirror<? extends Mixed> c : ClassDiscovery.getDefaultInstance()
 							.getClassesWithAnnotationThatExtend(typeof.class, Mixed.class)) {
 						nativeTypes.add((String) c.getAnnotation(typeof.class).getValue("value"));
-						fqNativeTypes.add(FullyQualifiedClassName.forNativeClass(c.loadClass()));
+						fqNativeTypesPrivate.add(FullyQualifiedClassName.forNativeClass(c.loadClass()));
 					}
 
 					for(ClassMirror<? extends Enum> c : ClassDiscovery.getDefaultInstance()
 							.getClassesWithAnnotationThatExtend(MEnum.class, Enum.class)) {
 						String name = (String) c.getAnnotation(MEnum.class).getValue("value");
 						nativeTypes.add(name);
-						fqNativeTypes.add(FullyQualifiedClassName.forNativeEnum(c.loadClass()));
+						fqNativeTypesPrivate.add(FullyQualifiedClassName.forFullyQualifiedClass(name));
 					}
 
 					for(ClassMirror<? extends DynamicEnum> c : ClassDiscovery.getDefaultInstance()
 							.getClassesWithAnnotationThatExtend(MDynamicEnum.class, DynamicEnum.class)) {
 						String name = (String) c.getAnnotation(MDynamicEnum.class).getValue("value");
 						nativeTypes.add(name);
-						fqNativeTypes.add(FullyQualifiedClassName.forFullyQualifiedClass(name));
+						fqNativeTypesPrivate.add(FullyQualifiedClassName.forFullyQualifiedClass(name));
 					}
+					fqNativeTypes = fqNativeTypesPrivate;
+					NativeTypeList.nativeTypes = nativeTypes;
 				}
 			}
 		}
@@ -239,7 +241,7 @@ public class NativeTypeList {
 	}
 
 	/**
-	 * Like {@link #getNativeClass(java.lang.String)}, except if there is an interface runner for this type, that class
+	 * Like {@link #getNativeClass(FullyQualifiedClassName)}, except if there is an interface runner for this type, that class
 	 * is returned instead. This works, because MixedInterfaceRunner extends Mixed. In general, if you need to construct
 	 * an object to call the methods defined in MixedInterfaceRunner, this is the method you should use. Despite being
 	 * an instanceof Mixed, you should only call the methods defined in {@link MixedInterfaceRunner}, as all other
@@ -330,7 +332,7 @@ public class NativeTypeList {
 	 * @return
 	 */
 	public static Mixed getNativeInvalidInstanceForUse(Class<? extends Mixed> clazz) {
-		if(clazz.getAnnotation(typeof.class) == null) {
+		if(ClassDiscovery.GetClassAnnotation(clazz, typeof.class) == null) {
 			throw new RuntimeException(clazz + " is missing typeof annotation!");
 		}
 		try {
