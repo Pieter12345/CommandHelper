@@ -1884,7 +1884,7 @@ public final class MethodScriptCompiler {
 		assert parents.pop() == rootNode : "Expected the last element of the stack to be the root node.";
 		assert rootNode.getChildAt(0) == tree : "Expected tree to be the first child of the root node.";
 
-		// Process the AST.
+		// Parse the AST.
 		Stack<List<Procedure>> procs = new Stack<>();
 		procs.add(new ArrayList<>());
 		processKeywords(tree, environment, compilerErrors);
@@ -1892,6 +1892,15 @@ public final class MethodScriptCompiler {
 		checkLinearComponents(tree, environment, compilerErrors);
 		postParseRewrite(rootNode, environment, envs, compilerErrors); // Pass rootNode since this might rewrite 'tree'.
 		tree = rootNode.getChildAt(0);
+		if(!compilerErrors.isEmpty()) {
+			if(compilerErrors.size() == 1) {
+				throw compilerErrors.iterator().next();
+			} else {
+				throw new ConfigCompileGroupException(compilerErrors);
+			}
+		}
+
+		// Analyze and optimize the AST.
 		if(staticAnalysis != null) {
 			staticAnalysis.analyze(tree, environment, envs, compilerErrors);
 		}
