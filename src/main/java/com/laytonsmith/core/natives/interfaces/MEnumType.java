@@ -317,6 +317,11 @@ public abstract class MEnumType implements Mixed, com.laytonsmith.core.natives.i
 							public String val() {
 								return getName();
 							}
+
+							@Override
+							public boolean isParseHelper() {
+								return true;
+							}
 						};
 					}
 
@@ -531,4 +536,9 @@ public abstract class MEnumType implements Mixed, com.laytonsmith.core.natives.i
 		return true;
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		// TODO - Switch this to false as soon as this object or its children will represent enum values in the AST.
+		return true;
+	}
 }

@@ -129,4 +129,8 @@ public abstract class AbstractMixedInterfaceRunner implements MixedInterfaceRunn
 		return Construct.isInstanceof(this, type);
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return true;
+	}
 }

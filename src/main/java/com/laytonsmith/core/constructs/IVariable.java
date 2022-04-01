@@ -141,4 +141,8 @@ public class IVariable extends Construct implements Cloneable {
 		return new CClassType[]{};
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

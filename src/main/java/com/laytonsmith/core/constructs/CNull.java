@@ -111,5 +111,8 @@ public final class CNull extends Construct implements Cloneable, Booleanish {
 		return false;
 	}
 
-
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

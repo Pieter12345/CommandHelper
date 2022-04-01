@@ -178,4 +178,9 @@ public class UserObject implements Mixed {
 		return (T) nativeObject;
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		// TODO - Make this return false as soon as this object is used in the AST and supported by analyses.
+		return true;
+	}
 }

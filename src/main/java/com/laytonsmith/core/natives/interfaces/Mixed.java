@@ -166,4 +166,10 @@ public interface Mixed extends Cloneable, Documentation {
 	// The whole argument validation/Static.get* methods needs to be moved to this mechanism.
 	//public <T extends Mixed> T castTo(Class<T> clazz) throws ClassCastException;
 
+	/**
+	 * Get whether this mixed is merely used by the parser, and should never be in the fully parsed executable AST.
+	 * @return {@code true} if this node is merely used by the parser,
+	 * {@code false} if this node can be valid in the fully parsed exectable AST.
+	 */
+	public boolean isParseHelper();
 }

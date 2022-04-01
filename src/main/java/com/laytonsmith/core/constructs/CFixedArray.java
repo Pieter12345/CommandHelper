@@ -144,4 +144,9 @@ public class CFixedArray extends Construct implements
 	public Version since() {
 		return MSVersion.V3_3_5;
 	}
+
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

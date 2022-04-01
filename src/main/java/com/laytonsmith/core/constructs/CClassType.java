@@ -618,4 +618,8 @@ public final class CClassType extends Construct implements com.laytonsmith.core.
 		return true;
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

@@ -314,4 +314,8 @@ public abstract class AbstractCREException extends ConfigRuntimeException implem
 		return true;
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

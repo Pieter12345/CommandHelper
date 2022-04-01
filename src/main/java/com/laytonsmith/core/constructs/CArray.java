@@ -953,4 +953,8 @@ public class CArray extends Construct implements Iterable<Mixed>, Booleanish,
 		return size() > 0;
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

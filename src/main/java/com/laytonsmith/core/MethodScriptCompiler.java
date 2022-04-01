@@ -2225,6 +2225,23 @@ public final class MethodScriptCompiler {
 					// Unknown function. This will be handled later.
 				}
 			}
+		} else if(node.isParseHelper()) {
+
+			// Generate a compile exception as this node should not be here, and will not be rewritten anymore.
+			// A specific exception message is created for all nodes that we know can end up here.
+			if(node instanceof CSymbol) {
+				exceptions.add(new ConfigCompileException("Unexpected symbol: " + node.val(), node.getTarget()));
+			} else if(node instanceof CKeyword) {
+
+				// Use the more specific compile error caused during keyword processing if available.
+				ConfigCompileException ex
+						= env.getEnv(CompilerEnvironment.class).potentialKeywordCompileErrors.get(node.getTarget());
+				exceptions.add(ex != null ? ex
+						: new ConfigCompileException("Unexpected keyword: " + node.val(), node.getTarget()));
+			} else {
+				exceptions.add(new ConfigCompileException("Unexpected non-converted "
+						+ node.getClass().getSimpleName() + " in the parse tree after parsing.", node.getTarget()));
+			}
 		}
 		for(int i = 0; i < ast.numberOfChildren(); i++) {
 			ParseTree child = ast.getChildAt(i);

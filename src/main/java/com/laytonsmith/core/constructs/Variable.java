@@ -112,4 +112,8 @@ public class Variable extends Construct {
 		return new CClassType[]{};
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

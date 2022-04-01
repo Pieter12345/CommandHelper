@@ -79,4 +79,9 @@ public final class CVoid extends Construct implements Cloneable {
 	public Set<ObjectModifier> getObjectModifiers() {
 		return EnumSet.of(ObjectModifier.FINAL);
 	}
+
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

@@ -61,4 +61,8 @@ public class CEntry extends Construct {
 		return new CClassType[]{};
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

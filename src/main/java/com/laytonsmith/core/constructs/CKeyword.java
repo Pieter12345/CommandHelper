@@ -52,4 +52,9 @@ public class CKeyword extends CBareString {
 	public CKeyword duplicate() {
 		throw new UnsupportedOperationException("Should have been removed at compile time");
 	}
+
+	@Override
+	public boolean isParseHelper() {
+		return true;
+	}
 }

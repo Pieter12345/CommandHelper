@@ -318,4 +318,8 @@ public class CClosure extends Construct implements Callable {
 		return CClassType.EMPTY_CLASS_ARRAY;
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

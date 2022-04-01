@@ -41,4 +41,8 @@ public abstract class CPrimitive extends Construct implements ValueType, Boolean
 		return MSVersion.V3_0_1;
 	}
 
+	@Override
+	public boolean isParseHelper() {
+		return false;
+	}
 }

@@ -90,6 +90,7 @@ public abstract class Construct implements Cloneable, Comparable<Construct>, Mix
 		return target.col();
 	}
 
+	@Override
 	public Target getTarget() {
 		return target;
 	}
@@ -619,6 +620,12 @@ public abstract class Construct implements Cloneable, Comparable<Construct>, Mix
 		return Objects.hash(ClassDiscovery.GetClassAnnotation(this.getClass(), typeof.class), val());
 	}
 
-
-
+	/**
+	 * {@inheritDoc}
+	 * Unless overridden by a subtype, {@code true} is returned.
+	 */
+	@Override
+	public boolean isParseHelper() {
+		return true;
+	}
 }
