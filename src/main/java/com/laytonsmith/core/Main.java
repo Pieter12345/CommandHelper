@@ -274,6 +274,22 @@ public class Main {
 			args = new String[]{"help"};
 		}
 
+		// Shortcut for the command line tool to improve startup time.
+		if(args[0].equals("cmdline")) {
+			CmdlineMode tool = new CmdlineMode();
+			if(tool.startupExtensionManager()) {
+				ExtensionManager.Startup();
+			}
+			HandleModeStartupTelemetry(args[0], true);
+			List<String> argsList = new ArrayList<>(Arrays.asList(args));
+			argsList.remove(0);
+			tool.execute(argsList);
+			if(!tool.noExitOnReturn()) {
+				System.exit(0);
+			}
+			return;
+		}
+
 		ArgumentParser mode;
 		ArgumentParser.ArgumentParserResults parsedArgs;
 
@@ -1218,7 +1234,10 @@ public class Main {
 			//We actually can't use the parsedArgs, because there may be cmdline switches in
 			//the arguments that we want to ignore here, but otherwise pass through. parsedArgs
 			//will prevent us from seeing those, however.
-			List<String> allArgs = parsedArgs.getRawArguments();
+			this.execute(parsedArgs.getRawArguments());
+		}
+
+		public void execute(List<String> allArgs) throws Exception {
 			if(allArgs.isEmpty()) {
 				StreamUtils.GetSystemErr().println("Usage: path/to/file.ms [arg1 arg2]");
 				System.exit(1);
