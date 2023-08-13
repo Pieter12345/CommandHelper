@@ -274,7 +274,7 @@ public class Main {
 			args = new String[]{"help"};
 		}
 
-		// Shortcut for the command line tool to improve startup time.
+		// Shortcut for the command line and java-version tool to improve installed cmdline startup time.
 		if(args[0].equals("cmdline")) {
 			CmdlineMode tool = new CmdlineMode();
 			if(tool.startupExtensionManager()) {
@@ -287,6 +287,9 @@ public class Main {
 			if(!tool.noExitOnReturn()) {
 				System.exit(0);
 			}
+			return;
+		} else if(args[0].equals("java-version")) {
+			new JavaVersionMode().execute(null);
 			return;
 		}
 
