@@ -24,9 +24,11 @@ import com.laytonsmith.core.compiler.FileOptions;
 import com.laytonsmith.core.compiler.SelfStatement;
 import com.laytonsmith.core.compiler.VariableScope;
 import com.laytonsmith.core.compiler.analysis.BreakableReference;
+import com.laytonsmith.core.compiler.analysis.ContinuableBoundDeclaration;
 import com.laytonsmith.core.compiler.analysis.ContinuableDeclaration;
 import com.laytonsmith.core.compiler.analysis.ContinuableReference;
 import com.laytonsmith.core.compiler.analysis.Declaration;
+import com.laytonsmith.core.compiler.analysis.BreakableBoundDeclaration;
 import com.laytonsmith.core.compiler.analysis.BreakableDeclaration;
 import com.laytonsmith.core.compiler.analysis.Namespace;
 import com.laytonsmith.core.compiler.analysis.ReturnableReference;
@@ -2369,28 +2371,33 @@ public class ControlFlow {
 			// Resolve this breakable reference to a breakable declaration to validate usage of break in this context.
 			Scope scope = analysis.getTermScope(ast);
 			if(scope != null) {
+				long remainingBreakCount = breakCount;
 				Set<Declaration> decls = scope.getDeclarations(Namespace.BREAKABLE, null);
-				if(decls.size() == 0) {
-					exceptions.add(new ConfigCompileException(
-							"Break is not valid in this context.", ast.getTarget()));
-				} else {
-					long remainingBreakCount = breakCount;
-					while(true) {
-						assert decls.size() == 1 : "Break reference resolves to multiple breakables at once.";
-						assert decls.iterator().next() instanceof BreakableDeclaration : "Unsupported breakable declaration.";
-						if(decls.iterator().next() instanceof BreakableDeclaration loopDecl) {
-							if(--remainingBreakCount == 0) {
-								break;
-							}
-							decls = loopDecl.getParentScope().getDeclarations(Namespace.BREAKABLE, null);
-							if(decls.size() == 0) {
-								exceptions.add(new ConfigCompileException(
-										"Cannot break from " + breakCount + " breakables."
-												+ " Only " + (breakCount - remainingBreakCount)
-												+ " nested breakables are available here.", ast.getTarget()));
-								break;
-							}
+				while(decls.size() != 0) {
+					assert decls.size() == 1 : "Break reference resolves to multiple breakables at once.";
+					assert decls.iterator().next() instanceof BreakableDeclaration : "Unsupported breakable declaration.";
+					Declaration decl = decls.iterator().next();
+					if(decl instanceof BreakableDeclaration loopDecl) {
+						if(--remainingBreakCount == 0) {
+							break;
 						}
+						decls = loopDecl.getParentScope().getDeclarations(Namespace.BREAKABLE, null);
+					} else if(decl instanceof BreakableBoundDeclaration) {
+						break;
+					} else {
+						throw new Error("Unsupported " + Namespace.BREAKABLE + " declaration.");
+					}
+				}
+				if(remainingBreakCount != 0) {
+					if(breakCount == remainingBreakCount) {
+						exceptions.add(new ConfigCompileException(
+								"Break is not valid in this context.", ast.getTarget()));
+					} else {
+						long breaksAvailable = breakCount - remainingBreakCount;
+						exceptions.add(new ConfigCompileException(
+								"Cannot break from " + breakCount + " breakables. Only " + breaksAvailable
+										+ " nested breakable" + (breaksAvailable == 1 ? " is" : "s are")
+										+ " available here.", ast.getTarget()));
 					}
 				}
 			}
@@ -2533,6 +2540,13 @@ public class ControlFlow {
 				if(decls.size() == 0) {
 					exceptions.add(new ConfigCompileException(
 							"Continue is not valid in this context.", ast.getTarget()));
+				} else {
+					for(Declaration decl : decls) {
+						if(decl instanceof ContinuableBoundDeclaration) {
+							exceptions.add(new ConfigCompileException(
+									"Continue is not valid in this context.", ast.getTarget()));
+						}
+					}
 				}
 			}
 
