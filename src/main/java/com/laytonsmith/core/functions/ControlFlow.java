@@ -2437,7 +2437,7 @@ public class ControlFlow {
 			// Resolve this returnable reference to its returnable declaration to get its required return type.
 			Scope scope = analysis.getTermScope(ast);
 			if(scope != null) {
-				Set<Declaration> decls = scope.getReachableDeclarations(Namespace.RETURNABLE, null);
+				Set<Declaration> decls = scope.getDeclarations(Namespace.RETURNABLE, null);
 				if(decls.size() == 0) {
 					exceptions.add(new ConfigCompileException("Return is not valid in this context.", ast.getTarget()));
 				} else {
