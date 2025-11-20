@@ -407,22 +407,21 @@ public class StaticAnalysis {
 
 				// Create procedure signatures.
 				// TODO - Consider creating one SignatureBuilder per declaration. With the current implementation, matching any possible declaration is sufficient. We want it to match all instead.
-				SignatureBuilder signatureBuilder = null;
+				List<CClassType> procReturnTypes = new ArrayList<>(1);
 				for(Declaration decl : decls) {
 					if(decl instanceof ProcDeclaration procDecl) {
 
-						// Start new signature.
-						if(signatureBuilder == null) {
-							signatureBuilder = new SignatureBuilder(procDecl.getType());
-						} else {
-							signatureBuilder.newSignature(procDecl.getType());
-						}
-
-						// Add parameters.
+						// Create new procedure signature.
+						SignatureBuilder signatureBuilder = new SignatureBuilder(procDecl.getType());
 						for(ParamDeclaration paramDecl : procDecl.getParameters()) {
 							signatureBuilder.param(paramDecl.getType(),
 									paramDecl.getIdentifier(), null, paramDecl.getDefaultValue() != null);
 						}
+
+						// Typecheck arguments against new procedure signature.
+						FunctionSignatures procSignature = signatureBuilder.build();
+						procReturnTypes.add(procSignature.getReturnType(
+								procTarget, argTypes, argTargets, env, exceptions));
 					} else {
 
 						// If this runs, then a wrong declaration type proc declaration was created.
@@ -431,13 +430,13 @@ public class StaticAnalysis {
 								+ procName + " -> " + decl.getIdentifier(), procTarget));
 					}
 				}
-				if(signatureBuilder == null) {
+				if(procReturnTypes.isEmpty()) {
 					return CClassType.AUTO; // No ProcDeclarations found. Exception(s) already generated.
 				}
-				FunctionSignatures procSignatures = signatureBuilder.build();
 
-				// Typecheck procedure signatures and return procedure return type.
-				return procSignatures.getReturnType(procTarget, argTypes, argTargets, env, exceptions);
+				// Return procedure return type.
+				// TODO - Get the most specific type when multiple declarations exist.
+				return procReturnTypes.get(0);
 			} else {
 				throw new Error("Unsupported " + CFunction.class.getSimpleName()
 						+ " type in type checking for node with value: " + cFunc.val());
