@@ -406,7 +406,6 @@ public class StaticAnalysis {
 				}
 
 				// Create procedure signatures.
-				// TODO - Consider creating one SignatureBuilder per declaration. With the current implementation, matching any possible declaration is sufficient. We want it to match all instead.
 				List<CClassType> procReturnTypes = new ArrayList<>(1);
 				for(Declaration decl : decls) {
 					if(decl instanceof ProcDeclaration procDecl) {
@@ -429,9 +428,7 @@ public class StaticAnalysis {
 								if(paramOptional) {
 									optionalParamDetected = true;
 								} else if(optionalParamDetected) {
-									exceptions.add(new ConfigCompileException("Procedure parameters after optional"
-											+ " parameters must be optional or varargs.", paramDecl.getTarget()));
-									return CClassType.AUTO; // Invalid procedure signature. Do not typecheck further.
+									return CClassType.AUTO; // Invalid procedure signature. Exception(s) already generated.
 								}
 							}
 						}
