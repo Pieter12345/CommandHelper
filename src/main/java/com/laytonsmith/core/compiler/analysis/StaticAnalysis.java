@@ -413,13 +413,26 @@ public class StaticAnalysis {
 
 						// Create new procedure signature.
 						SignatureBuilder signatureBuilder = new SignatureBuilder(procDecl.getType());
+						boolean optionalParamDetected = false;
+						boolean varargsParamDetected = false;
 						for(ParamDeclaration paramDecl : procDecl.getParameters()) {
 							CClassType paramType = paramDecl.getType();
+							if(varargsParamDetected) {
+								return CClassType.AUTO; // Invalid procedure signature. Exception(s) already generated.
+							}
 							if(paramType.isVarargs()) {
 								signatureBuilder.varParam(paramType, paramDecl.getIdentifier(), null);
+								varargsParamDetected = true;
 							} else {
-								signatureBuilder.param(paramType,
-										paramDecl.getIdentifier(), null, paramDecl.getDefaultValue() != null);
+								boolean paramOptional = paramDecl.getDefaultValue() != null;
+								signatureBuilder.param(paramType, paramDecl.getIdentifier(), null, paramOptional);
+								if(paramOptional) {
+									optionalParamDetected = true;
+								} else if(optionalParamDetected) {
+									exceptions.add(new ConfigCompileException("Procedure parameters after optional"
+											+ " parameters must be optional or varargs.", paramDecl.getTarget()));
+									return CClassType.AUTO; // Invalid procedure signature. Do not typecheck further.
+								}
 							}
 						}
 
