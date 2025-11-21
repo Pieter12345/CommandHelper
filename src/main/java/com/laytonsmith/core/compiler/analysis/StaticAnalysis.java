@@ -414,8 +414,13 @@ public class StaticAnalysis {
 						// Create new procedure signature.
 						SignatureBuilder signatureBuilder = new SignatureBuilder(procDecl.getType());
 						for(ParamDeclaration paramDecl : procDecl.getParameters()) {
-							signatureBuilder.param(paramDecl.getType(),
-									paramDecl.getIdentifier(), null, paramDecl.getDefaultValue() != null);
+							CClassType paramType = paramDecl.getType();
+							if(paramType.isVarargs()) {
+								signatureBuilder.varParam(paramType, paramDecl.getIdentifier(), null);
+							} else {
+								signatureBuilder.param(paramType,
+										paramDecl.getIdentifier(), null, paramDecl.getDefaultValue() != null);
+							}
 						}
 
 						// Typecheck arguments against new procedure signature.
