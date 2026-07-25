@@ -8,9 +8,9 @@ public class DefaultTelemetry {
 
 	@TelemetryCategory(name = "methodscript.startup",
 			group = TelemetryCategoryGroup.GENERAL_GROUP,
-			type = TelemetryType.METRIC,
+			type = TelemetryType.LOG,
 			purpose = "This category logs startup of the program.")
-	public static class StartupMetric implements MetricTelemetryValue {}
+	public static class StartupMetric implements LogTelemetryValue {}
 
 	@TelemetryCategory(name = "methodscript.startupMode",
 			group = TelemetryCategoryGroup.GENERAL_GROUP,

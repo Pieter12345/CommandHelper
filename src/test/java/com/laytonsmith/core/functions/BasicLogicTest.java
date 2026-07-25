@@ -129,6 +129,17 @@ public class BasicLogicTest extends AbstractIntegrationTest {
 	}
 
 	@Test(timeout = 10000)
+	public void testEqualsBooleanCoercionIsPerPair() throws Exception {
+		// Boolean coercion should only apply when one of the two values in a pair is a boolean.
+		// Non-boolean pairs should use normal comparison, not be coerced to boolean.
+		assertEquals("false", SRun("equals(1, 2, array(1, 2, 3), true)", fakePlayer));
+		assertEquals("false", SRun("equals(1, 2, true)", fakePlayer));
+		assertEquals("true", SRun("equals(true, 1)", fakePlayer));
+		assertEquals("false", SRun("equals(true, 0)", fakePlayer));
+		assertEquals("false", SRun("equals(1, 2)", fakePlayer));
+	}
+
+	@Test(timeout = 10000)
 	public void testEqualsICMulti() throws Exception {
 		assertEquals("true", SRun("equals_ic(1, '1', 1.0)", fakePlayer));
 		assertEquals("false", SRun("equals_ic('blah', 'blah', 'blarg')", fakePlayer));

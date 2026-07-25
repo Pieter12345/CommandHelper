@@ -3,11 +3,14 @@ package com.laytonsmith.core.telemetry;
 import com.laytonsmith.core.telemetry.ApplicationInsights.Envelope;
 import com.laytonsmith.PureUtilities.Common.StreamUtils;
 import com.laytonsmith.PureUtilities.JSONUtil;
+import com.laytonsmith.PureUtilities.MapBuilder;
 import com.laytonsmith.abstraction.Implementation;
 import com.laytonsmith.core.MethodScriptFileLocations;
 import com.laytonsmith.core.Prefs;
+import com.laytonsmith.core.compiler.analysis.StaticAnalysisConfiguration;
 import com.laytonsmith.core.telemetry.ApplicationInsights.TelemetryUtil;
 import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -127,7 +130,16 @@ public class Telemetry {
 			}
 		}
 
-		metric(DefaultTelemetry.StartupMetric.class);
+		boolean saEnabled = false;
+		try {
+			saEnabled = StaticAnalysisConfiguration.GetConfiguration().globalEnable();
+		} catch(IOException ex) {
+			// Ignore, default to false
+		}
+
+		log(DefaultTelemetry.StartupMetric.class,
+				MapBuilder.start("saEnabled", Boolean.toString(saEnabled)),
+				null);
 	}
 
 	/**

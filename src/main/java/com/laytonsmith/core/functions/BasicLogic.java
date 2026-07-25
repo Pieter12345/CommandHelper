@@ -109,23 +109,17 @@ public class BasicLogic {
 				}
 				return CBoolean.get(equals);
 			}
-			if(ArgumentValidation.anyBooleans(args)) {
-				boolean equals = true;
-				for(int i = 1; i < args.length; i++) {
-					boolean arg1 = ArgumentValidation.getBoolean(args[i - 1], t);
-					boolean arg2 = ArgumentValidation.getBoolean(args[i], t);
-					if(arg1 != arg2) {
-						equals = false;
-						break;
-					}
-				}
-				return CBoolean.get(equals);
-			}
-
 			{
 				boolean equals = true;
 				for(int i = 1; i < args.length; i++) {
-					if(!args[i - 1].val().equals(args[i].val())) {
+					if(args[i - 1] instanceof CBoolean || args[i] instanceof CBoolean) {
+						boolean arg1 = ArgumentValidation.getBoolean(args[i - 1], t);
+						boolean arg2 = ArgumentValidation.getBoolean(args[i], t);
+						if(arg1 != arg2) {
+							equals = false;
+							break;
+						}
+					} else if(!args[i - 1].val().equals(args[i].val())) {
 						equals = false;
 						break;
 					}
